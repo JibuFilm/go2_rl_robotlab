@@ -605,3 +605,70 @@ def feet_regulation(
     reward = (feet_xy_vel_w.pow(2).sum(dim=-1) * torch.exp(-feet_height / (0.025 * base_height_target))).sum(dim=-1)
 
     return reward
+
+
+# ---------------------------------------------------------------------------
+# Dynamic tracking sigma — go2_rl_gym parity RESTORATION (Path-A fork).
+# The port fixed std=0.5 (README-admitted deviation); these terms restore the
+# reference behavior (legged_robot.py:1288-1334). Pure math + offline tests in
+# dynamic_sigma_core.py / tests/test_dynamic_sigma.py.
+# ---------------------------------------------------------------------------
+from .dynamic_sigma_core import cols_to_max_sigma, dynamic_sigma  # noqa: E402
+
+
+def _dynamic_sigma_per_env(
+    env: ManagerBasedRLEnv, cmd_abs: torch.Tensor, default_sigma: float, v_min: float, v_max: float
+) -> torch.Tensor:
+    """Per-env sigma from terrain type + level. Falls back to the default sigma when terrain
+    curriculum state is absent (reference behavior when curriculum is off,
+    legged_robot.py:1291-1292)."""
+    terrain = getattr(env.scene, "terrain", None)
+    levels = getattr(terrain, "terrain_levels", None) if terrain is not None else None
+    types = getattr(terrain, "terrain_types", None) if terrain is not None else None
+    if levels is None or types is None:
+        return torch.full_like(cmd_abs, default_sigma)
+    per_col = getattr(env, "_dyn_sigma_per_col", None)
+    if per_col is None:
+        gen = terrain.cfg.terrain_generator
+        names = list(gen.sub_terrains.keys())
+        props = [gen.sub_terrains[n].proportion for n in names]
+        per_col = cols_to_max_sigma(names, props, gen.num_cols).to(cmd_abs.device)
+        env._dyn_sigma_per_col = per_col
+    return dynamic_sigma(cmd_abs, per_col[types], levels, default_sigma, v_min, v_max)
+
+
+def track_lin_vel_xy_exp_dynamic_sigma(
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    v_min: float = 0.5,
+    v_max: float = 1.5,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Linear-velocity tracking with per-axis dynamic sigma (legged_robot.py:1310-1322):
+    sigma_x from |cmd_x|, sigma_y from |cmd_y|; reward = exp(-(err_x^2/sigma_x + err_y^2/sigma_y)).
+    With sigma_x == sigma_y == std**2 this reduces exactly to the port's track_lin_vel_xy_exp."""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)
+    default_sigma = std**2
+    sigma_x = _dynamic_sigma_per_env(env, torch.abs(cmd[:, 0]), default_sigma, v_min, v_max)
+    sigma_y = _dynamic_sigma_per_env(env, torch.abs(cmd[:, 1]), default_sigma, v_min, v_max)
+    err_sq = torch.square(cmd[:, :2] - asset.data.root_lin_vel_b[:, :2])
+    return torch.exp(-(err_sq[:, 0] / sigma_x + err_sq[:, 1] / sigma_y))
+
+
+def track_ang_vel_z_exp_dynamic_sigma(
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    v_min: float = 1.0,
+    v_max: float = 2.0,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Yaw-rate tracking with dynamic sigma from |cmd_wz| (legged_robot.py:1324-1333)."""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)
+    default_sigma = std**2
+    sigma = _dynamic_sigma_per_env(env, torch.abs(cmd[:, 2]), default_sigma, v_min, v_max)
+    ang_vel_error_sq = torch.square(cmd[:, 2] - asset.data.root_ang_vel_b[:, 2])
+    return torch.exp(-ang_vel_error_sq / sigma)

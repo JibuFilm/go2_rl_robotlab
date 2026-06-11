@@ -150,7 +150,7 @@ def rough_slope_terrain(difficulty: float, cfg) -> np.ndarray:
 @configclass
 class WaveTerrainCfg(terrain_gen.HfWaveTerrainCfg):
     function = wave_terrain
-    amplitude_range: tuple[float, float] = (0.1, 0.28)
+    amplitude_range: tuple[float, float] = (0.1, 0.30)  # gym parity: 0.1 + 0.2*d (top row d=0.9 -> 0.28)
     num_waves: int = 5
     noise_range: tuple[float, float] = (-0.05, 0.05)
     noise_step: float = 0.005
@@ -160,7 +160,7 @@ class WaveTerrainCfg(terrain_gen.HfWaveTerrainCfg):
 @configclass
 class RoughSlopeTerrainCfg(terrain_gen.HfPyramidSlopedTerrainCfg):
     function = rough_slope_terrain
-    slope_range: tuple[float, float] = (0.1, 0.568)
+    slope_range: tuple[float, float] = (0.1, 0.62)  # gym parity: 0.1 + 0.52*d (top row d=0.9 -> 0.568)
     platform_width: float = 3.0
     noise_range: tuple[float, float] = (-0.05, 0.05)
     noise_step: float = 0.005
@@ -190,7 +190,7 @@ TERRAIN_CFG = Go2TerrainGeneratorCfg(
         "slope_up": with_slope_threshold(
             terrain_gen.HfInvertedPyramidSlopedTerrainCfg(
                 proportion=0.10,
-                slope_range=(0.1, 0.568),
+                slope_range=(0.1, 0.62),  # gym parity: 0.1 + 0.52*d
                 platform_width=3.0,
             ),
             10.0, # effectively disable slope correction for slope_up terrain
@@ -198,7 +198,7 @@ TERRAIN_CFG = Go2TerrainGeneratorCfg(
         "slope_down": with_slope_threshold(
             terrain_gen.HfPyramidSlopedTerrainCfg(
                 proportion=0.10,
-                slope_range=(0.1, 0.568),
+                slope_range=(0.1, 0.62),  # gym parity: 0.1 + 0.52*d
                 platform_width=3.0,
             ),
             10.0, # effectively disable slope correction for slope_down terrain
@@ -212,7 +212,7 @@ TERRAIN_CFG = Go2TerrainGeneratorCfg(
         "stairs_up": with_slope_threshold(
             terrain_gen.HfInvertedPyramidStairsTerrainCfg(
                 proportion=0.25,
-                step_height_range=(0.05, 0.257),
+                step_height_range=(0.05, 0.28),  # gym parity: 0.05 + 0.23*d (top row d=0.9 -> 0.257)
                 step_width=0.31,
                 platform_width=3.0,
             ),
@@ -221,7 +221,7 @@ TERRAIN_CFG = Go2TerrainGeneratorCfg(
         "stairs_down": with_slope_threshold(
             terrain_gen.HfPyramidStairsTerrainCfg(
                 proportion=0.10,
-                step_height_range=(0.05, 0.257),
+                step_height_range=(0.05, 0.28),  # gym parity: 0.05 + 0.23*d (top row d=0.9 -> 0.257)
                 step_width=0.31,
                 platform_width=3.0,
             ),
@@ -231,7 +231,7 @@ TERRAIN_CFG = Go2TerrainGeneratorCfg(
             terrain_gen.HfDiscreteObstaclesTerrainCfg(
                 proportion=0.20,
                 obstacle_width_range=(1.0, 2.0),
-                obstacle_height_range=(0.05, 0.275),
+                obstacle_height_range=(0.05, 0.30),  # gym parity: 0.05 + 0.25*d (top row d=0.9 -> 0.275)
                 num_obstacles=20,
                 platform_width=3.0,
             ),

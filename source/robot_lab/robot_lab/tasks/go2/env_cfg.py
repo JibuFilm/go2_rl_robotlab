@@ -348,15 +348,17 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
+    # Path-A restoration: dynamic sigma (go2_rl_gym parity — the port had fixed std).
+    # Bands + per-terrain maxima from go2_config.py:166-175; std**2 = the default sigma 0.25.
     track_lin_vel_xy_exp = RewTerm(
-        func=mdp.track_lin_vel_xy_exp, 
-        weight=1.0, 
-        params={"command_name": "base_velocity", "std": 0.5}
+        func=mdp.track_lin_vel_xy_exp_dynamic_sigma,
+        weight=1.0,
+        params={"command_name": "base_velocity", "std": 0.5, "v_min": 0.5, "v_max": 1.5}
     )
     track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_exp, 
-        weight=0.5, 
-        params={"command_name": "base_velocity", "std": 0.5}
+        func=mdp.track_ang_vel_z_exp_dynamic_sigma,
+        weight=0.5,
+        params={"command_name": "base_velocity", "std": 0.5, "v_min": 1.0, "v_max": 2.0}
     )
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
