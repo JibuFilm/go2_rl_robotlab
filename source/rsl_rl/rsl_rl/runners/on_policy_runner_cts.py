@@ -76,8 +76,12 @@ class OnPolicyRunnerCTS:
         self.current_learning_iteration = 0
 
         # robogauge client
+        robogauge_cfg = train_cfg.get("robogauge", {})
+        # eval-side: which robogauge robot-model task to score against (e.g. "go2_lab" for the
+        # go2 reference smoke, "a2_lab" for the A2 patha runs). Defaults to "go2_lab" so existing
+        # configs are unchanged. (Point Motion EVAL PREP WP2c — eval-only parameterization.)
+        self.robogauge_task_name = robogauge_cfg.get("task_name", "go2_lab")
         try:
-            robogauge_cfg = train_cfg.get("robogauge", {})
             if not robogauge_cfg.get("enabled", False):
                 raise ImportError("config disabled")
             from robogauge.scripts.client import RoboGaugeClient
@@ -204,7 +208,7 @@ class OnPolicyRunnerCTS:
                 self.robogauge_client.submit_task(
                     model_path=jit_path,
                     step=it,
-                    task_name="go2_lab",
+                    task_name=self.robogauge_task_name,
                     experiment_name=self.cfg["experiment_name"],
                 )
         except Exception as e:
