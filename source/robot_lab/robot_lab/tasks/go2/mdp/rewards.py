@@ -613,6 +613,8 @@ def feet_regulation(
 # reference behavior (legged_robot.py:1288-1334). Pure math + offline tests in
 # dynamic_sigma_core.py / tests/test_dynamic_sigma.py.
 # ---------------------------------------------------------------------------
+import os  # noqa: E402
+
 from .dynamic_sigma_core import cols_to_max_sigma, dynamic_sigma  # noqa: E402
 
 
@@ -634,7 +636,20 @@ def _dynamic_sigma_per_env(
         props = [gen.sub_terrains[n].proportion for n in names]
         per_col = cols_to_max_sigma(names, props, gen.num_cols).to(cmd_abs.device)
         env._dyn_sigma_per_col = per_col
-    return dynamic_sigma(cmd_abs, per_col[types], levels, default_sigma, v_min, v_max)
+    sigma = dynamic_sigma(cmd_abs, per_col[types], levels, default_sigma, v_min, v_max)
+    # G0' live-wiring acceptance check (Path-A brief §7 A1): the sigma math is proven offline,
+    # but the terrain_levels/terrain_types glue only executes on GPU — with this env var set the
+    # smoke logs sigma stats so we can see sigma move with terrain level + command magnitude.
+    if os.environ.get("ROBOT_LAB_DYN_SIGMA_DEBUG"):
+        n = getattr(env, "_dyn_sigma_dbg_n", 0)
+        env._dyn_sigma_dbg_n = n + 1
+        if n % 200 == 0:
+            print(f"[DYN_SIGMA] call={n} sigma min/mean/max="
+                  f"{float(sigma.min()):.4f}/{float(sigma.mean()):.4f}/{float(sigma.max()):.4f} "
+                  f"cmd_abs mean/max={float(cmd_abs.mean()):.3f}/{float(cmd_abs.max()):.3f} "
+                  f"levels mean/max={float(levels.float().mean()):.2f}/{int(levels.max())} "
+                  f"n_default={int((sigma - default_sigma).abs().lt(1e-6).sum())}/{sigma.numel()}")
+    return sigma
 
 
 def track_lin_vel_xy_exp_dynamic_sigma(
