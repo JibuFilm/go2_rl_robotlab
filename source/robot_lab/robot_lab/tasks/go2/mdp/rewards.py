@@ -649,6 +649,14 @@ def _dynamic_sigma_per_env(
                   f"cmd_abs mean/max={float(cmd_abs.mean()):.3f}/{float(cmd_abs.max()):.3f} "
                   f"levels mean/max={float(levels.float().mean()):.2f}/{int(levels.max())} "
                   f"n_default={int((sigma - default_sigma).abs().lt(1e-6).sum())}/{sigma.numel()}")
+            # synthetic high-command probe: same LIVE per-col lookup + terrain levels, cmd=2.0
+            # (>= v_max -> sigma_max, level-scaled). At stage-1 command ranges the training sigma
+            # is legitimately all-default (band starts at v_min); this line proves the live glue
+            # moves sigma without waiting 20k iters for stage-2 commands.
+            synth = dynamic_sigma(torch.full_like(cmd_abs, 2.0), per_col[types], levels,
+                                  default_sigma, v_min, v_max)
+            print(f"[DYN_SIGMA_SYNTH] cmd=2.0 sigma min/mean/max="
+                  f"{float(synth.min()):.4f}/{float(synth.mean()):.4f}/{float(synth.max()):.4f}")
     return sigma
 
 
