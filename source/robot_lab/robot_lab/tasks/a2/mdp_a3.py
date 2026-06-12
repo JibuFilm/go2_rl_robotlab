@@ -23,6 +23,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import patterns
 from isaaclab.utils import configclass
+from isaaclab.utils.math import quat_apply
 
 from robot_lab.tasks.a2.a3_range_core import (
     A3SelfOcclusionKernel,
@@ -82,11 +83,19 @@ def dome_ranges(
     RayCaster cannot see; no masking, no fill rules — the fused measurement IS the observation.
     """
     kernel, idx = _get_kernel(env, asset_cfg.name)
-    # terrain ranges from the two RayCasters (miss -> inf -> normalizes to 1.0)
+    # terrain ranges from the two RayCasters (miss -> inf -> normalizes to 1.0).
+    # RANGE ORIGIN (R8 source-truth fix, 2026-06-12): RayCasterData.pos_w/quat_w report the
+    # tracked BODY pose, NOT the sensor frame — the cfg offset is baked into the RAY SET at
+    # init (ray_caster.py:221-224) and never composed into the report (:241-249). The
+    # EFFECTIVE per-ray origin is `quat_apply(quat_w, offset_pos) + pos_w` (:285-286, pattern
+    # starts are zeros). Ranges measured from data.pos_w would be distances-from-base-origin —
+    # mis-framed by up to ±|site offset| (0.35 m). Measure from the TRUE site origin.
     terrain = []
-    for name in sensor_names:
+    for k, name in enumerate(sensor_names):
         s = env.scene.sensors[name]
-        r = (s.data.ray_hits_w - s.data.pos_w.unsqueeze(1)).norm(dim=-1)   # (B, 256)
+        off = kernel.site_offsets_b[k].to(s.data.pos_w.dtype).expand(s.data.pos_w.shape[0], 3)
+        origin_w = s.data.pos_w + quat_apply(s.data.quat_w, off)           # == ray_starts_w
+        r = (s.data.ray_hits_w - origin_w.unsqueeze(1)).norm(dim=-1)       # (B, 256)
         terrain.append(r)
     terrain_r = torch.cat(terrain, dim=1)                                   # (B, 512)
     # self-body first hits from the articulation's body poses

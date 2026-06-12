@@ -158,6 +158,13 @@ class A3SelfOcclusionKernel:
         o, d = body_frame_rays(self.pattern, self.device, self.dtype)
         self.ray_origins_b = o                                          # (512, 3) base_link frame
         self.ray_dirs_b = d                                             # (512, 3)
+        # per-sensor site origins in the parent-body frame (the EFFECTIVE ray origins; the
+        # obs term measures ranges from these — RayCasterData.pos_w reports the BODY pose,
+        # never the sensor frame: isaaclab 2.3.2 ray_caster.py:241-249 vs :221-224, :285-286)
+        self.site_offsets_b = torch.stack([
+            torch.tensor(s["site_pos_body"], device=self.device, dtype=self.dtype)
+            for s in self.pattern["sensors"]
+        ])                                                              # (n_sensors, 3)
         self.geoms = []
         for g in self.body_geoms["geoms"]:
             self.geoms.append({
@@ -222,6 +229,7 @@ class A3SelfOcclusionKernel:
         self.device = torch.device(device)
         self.ray_origins_b = self.ray_origins_b.to(device)
         self.ray_dirs_b = self.ray_dirs_b.to(device)
+        self.site_offsets_b = self.site_offsets_b.to(device)
         for g in self.geoms:
             for k in ("size", "pos", "R"):
                 g[k] = g[k].to(device)

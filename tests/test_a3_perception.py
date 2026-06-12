@@ -255,6 +255,17 @@ try:
 except RuntimeError as e:
     ok("jointed-absent body raises (no silent approximation)", "JOINT" in str(e))
 
+# ------------------------------------------------- [8] R8 source-truth guard (range origin)
+# RayCasterData.pos_w reports the BODY pose (isaaclab ray_caster.py:241-249); the cfg offset
+# lives only in the baked ray set (:221-224). The obs term must measure ranges from the
+# composed site origin (== ray_starts_w, :285-286), NEVER from data.pos_w.
+mdp_text = (A2_DIR / "mdp_a3.py").read_text()
+ok("dome_ranges does NOT use data.pos_w as the range origin",
+   "ray_hits_w - s.data.pos_w" not in mdp_text)
+ok("dome_ranges measures from the composed site origin",
+   "origin_w = s.data.pos_w + quat_apply" in mdp_text
+   and "site_offsets_b" in mdp_text)
+
 print("-" * 78)
 n = sum(PASS)
 print(f"{'ALL PASS' if all(PASS) else 'FAILURES'}: {n}/{len(PASS)}")
