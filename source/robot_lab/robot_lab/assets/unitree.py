@@ -12,7 +12,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import configclass
 
 from robot_lab.assets import ISAACLAB_ASSETS_DATA_DIR
-from robot_lab.assets.unitree_actuator import UnitreeActuatorCfg_Go2HV
+from robot_lab.assets.unitree_actuator import UnitreeActuatorCfg_Go2HV  # noqa: F401
 
 ##
 # Configuration
@@ -147,6 +147,95 @@ GO2_CFG_UNITREE = UnitreeArticulationCfg(
             friction=0.01,
             min_delay=0,
             max_delay=4,
+        ),
+    },
+    # fmt: off
+    joint_sdk_names=[
+        "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+        "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+        "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
+        "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint"
+    ],
+    # fmt: on
+)
+
+
+# =============================================================================
+# Unitree A2 (Path-A fork) — the A2 transcription (PATH_A_SESSION_BRIEF.md §3).
+#
+# A copy of GO2_CFG_UNITREE with ONLY the §3 robot-identity rows changed. Sources
+# (all transcribed, never invented):
+#   * URDF (base_link naming + 17 STLs + 3 OS0 payload fixed links) vendored from
+#     unitree_ros/a2_description -> resources/a2/urdf/a2.urdf. Effort/velocity
+#     limits come from the URDF: 120/120/180 N·m, 22/22/14.6667 rad/s (VERIFIED
+#     against the vendored URDF 2026-06-12 — see PORT_AUDIT / report).
+#   * init z 0.45 (stand_base_z 0.4 + drop margin; brief §3).
+#   * default angles incl. the OPPOSITE hip signs (A2: L_hip=-0.1, R_hip=+0.1 —
+#     the MIRROR of go2's L=+0.1/R=-0.1), thigh 0.9, calf -1.8
+#     (robot_config.py A2 default_stand; a2_constants.py INIT_STATE).
+#   * per-joint-group gains kp 100/100/150, kd 4/4/6, effort 120/120/180,
+#     armature 0.03 (robot_config.py A2 kp/kd/effort; a2_constants.py actuators).
+#     The go2 used one Go2HV torque-speed actuator (kp 25); the A2 actuator is
+#     OURS — a plain per-group PD mirrored in the deploy driver (PORT_AUDIT line:
+#     "the A2 actuator config is ours, mirrored in our deploy driver"). Three
+#     DCMotorCfg groups express the per-group kp/kd a single group cannot.
+#
+# The OS0 sensor payload (+1.479 kg, total 41.550 kg) is baked into the URDF as
+# fixed links and folded into base_link by merge_fixed_joints — teacher and
+# student share this body (HANDOFF A2-SENSORIZED lock).
+# =============================================================================
+A2_CFG_UNITREE = UnitreeArticulationCfg(
+    spawn=UnitreeUrdfFileCfg(
+        asset_path=f"{ISAACLAB_ASSETS_DATA_DIR}/a2/urdf/a2.urdf",
+        # Explicit: fold the 3 OS0 payload fixed links into base_link (+1.479 kg ->
+        # 41.550 kg) at conversion. The 4 *_foot links carry dont_collapse="true"
+        # in the URDF, so they SURVIVE the merge (foot collision preserved) — same
+        # mechanism go2's Head_upper/Head_lower + feet rely on.
+        merge_fixed_joints=True,
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.45),  # brief §3: stand_base_z 0.4 + drop margin
+        joint_pos={
+            # A2 hip signs are OPPOSITE go2 (brief §3): left hips -0.1, right hips +0.1.
+            ".*L_hip_joint": -0.1,
+            ".*R_hip_joint": 0.1,
+            ".*_thigh_joint": 0.9,
+            ".*_calf_joint": -1.8,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    actuators={
+        # Per-group PD (kp/kd/effort/velocity from the locked A2 contract). Plain
+        # DCMotorCfg — the A2's own actuator, not go2's torque-speed Go2HV model.
+        "hip": DCMotorCfg(
+            joint_names_expr=[".*_hip_joint"],
+            effort_limit=120.0,
+            saturation_effort=120.0,
+            velocity_limit=22.0,   # URDF hip velocity limit
+            stiffness=100.0,
+            damping=4.0,
+            armature=0.03,
+            friction=0.0,
+        ),
+        "thigh": DCMotorCfg(
+            joint_names_expr=[".*_thigh_joint"],
+            effort_limit=120.0,
+            saturation_effort=120.0,
+            velocity_limit=22.0,   # URDF thigh velocity limit
+            stiffness=100.0,
+            damping=4.0,
+            armature=0.03,
+            friction=0.0,
+        ),
+        "calf": DCMotorCfg(
+            joint_names_expr=[".*_calf_joint"],
+            effort_limit=180.0,
+            saturation_effort=180.0,
+            velocity_limit=14.6667,  # URDF calf velocity limit
+            stiffness=150.0,
+            damping=6.0,
+            armature=0.03,
+            friction=0.0,
         ),
     },
     # fmt: off
