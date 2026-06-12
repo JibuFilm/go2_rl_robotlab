@@ -102,10 +102,17 @@ class _TorchPolicyExporter(torch.nn.Module):
         # Keep the same per-term history layout as deploy-side push_obs_history:
         # [ang_vel(3), gravity(3), cmd(3), joint_pos(A), joint_vel(A), last_action(A)].
         self.feature_dims = [3, 3, 3, self.num_actions, self.num_actions, self.num_actions]
+        extra = self.num_single_obs - sum(self.feature_dims)
+        if extra > 0:
+            # ONE trailing sensor block (A3/V5 dome ranges: 45 + 512 = 557)
+            self.feature_dims.append(extra)
         if sum(self.feature_dims) != self.num_single_obs:
             raise ValueError(
-                "Unsupported single_obs layout: expected 3+3+3+3*num_actions to match num_single_obs."
+                "Unsupported single_obs layout: expected 3+3+3+3*num_actions (+ one optional "
+                "trailing sensor block) to match num_single_obs."
             )
+        # the actor consumes only the leading proprio slice (A3/V5: latent + obs(45))
+        self.proprio_dim = int(getattr(policy, "proprio_dim", self.num_single_obs))
         self.register_buffer("obs_history", torch.zeros(1, self.num_actor_obs, dtype=torch.float32))
         
         # copy normalizer if exists
@@ -156,7 +163,7 @@ class _TorchPolicyExporter(torch.nn.Module):
         single_obs = self.single_obs_normalizer(single_obs)
         obs_a = self.actor_obs_normalizer(self.obs_history)
         latent, _ = self.student_moe_encoder(obs_a)
-        latent_and_obs = torch.cat([latent, single_obs], dim=-1)
+        latent_and_obs = torch.cat([latent, single_obs[:, : self.proprio_dim]], dim=-1)
         if self.state_dependent_std:
             return self.actor(latent_and_obs)[..., 0, :]
         else:
@@ -202,10 +209,17 @@ class _OnnxPolicyExporter(torch.nn.Module):
         # Keep the same per-term history layout as deploy-side push_obs_history:
         # [ang_vel(3), gravity(3), cmd(3), joint_pos(A), joint_vel(A), last_action(A)].
         self.feature_dims = [3, 3, 3, self.num_actions, self.num_actions, self.num_actions]
+        extra = self.num_single_obs - sum(self.feature_dims)
+        if extra > 0:
+            # ONE trailing sensor block (A3/V5 dome ranges: 45 + 512 = 557)
+            self.feature_dims.append(extra)
         if sum(self.feature_dims) != self.num_single_obs:
             raise ValueError(
-                "Unsupported single_obs layout: expected 3+3+3+3*num_actions to match num_single_obs."
+                "Unsupported single_obs layout: expected 3+3+3+3*num_actions (+ one optional "
+                "trailing sensor block) to match num_single_obs."
             )
+        # the actor consumes only the leading proprio slice (A3/V5: latent + obs(45))
+        self.proprio_dim = int(getattr(policy, "proprio_dim", self.num_single_obs))
         self.state_dependent_std = policy.state_dependent_std
         
         # copy normalizer if exists
@@ -241,7 +255,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
         single_obs = self.single_obs_normalizer(single_obs)
         obs_a = self.actor_obs_normalizer(history)
         latent, _ = self.student_moe_encoder(obs_a)
-        latent_and_obs = torch.cat([latent, single_obs], dim=-1)
+        latent_and_obs = torch.cat([latent, single_obs[:, : self.proprio_dim]], dim=-1)
         if self.state_dependent_std:
             return self.actor(latent_and_obs)[..., 0, :]
         else:

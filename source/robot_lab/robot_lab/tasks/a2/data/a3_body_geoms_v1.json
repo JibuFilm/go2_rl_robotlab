@@ -1,0 +1,842 @@
+{
+ "schema": "a3_body_geoms_v1",
+ "version": "a3_pattern_v1_provisional_2026-06-12",
+ "source_mjcf": "/Users/jibujin/Developer/PerceptionGame/tools/gear_sonic_fk/out/a2_sensorized/a2_sensorized.xml",
+ "size_semantics": "mujoco: sphere [r]; cylinder [r, half_height] about local z; box half-extents",
+ "census_collision_active": {
+  "box": 31,
+  "cylinder": 5,
+  "sphere": 4
+ },
+ "census_note": "brief documents 33 boxes / 6 cylinders / 4 spheres counting the OS0 visual twins (co-located duplicates of the 2 boxes + 1 cylinder); the collision-active occluder set is 31/5/4 = 40 \u2014 geometrically identical",
+ "n_geoms": 40,
+ "geoms": [
+  {
+   "name": "base1_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.12,
+    0.14,
+    0.085
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.007
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "base2_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.04,
+    0.025,
+    0.01
+   ],
+   "pos_body": [
+    0.25,
+    0.0,
+    0.119
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "base3_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.025,
+    0.015,
+    0.008
+   ],
+   "pos_body": [
+    -0.22,
+    0.0,
+    0.119
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "base4_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.03,
+    0.05,
+    0.005
+   ],
+   "pos_body": [
+    0.365,
+    0.0,
+    0.1
+   ],
+   "quat_wxyz_body": [
+    0.939372685,
+    0.0,
+    -0.342897885,
+    0.0
+   ]
+  },
+  {
+   "name": "base5_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.0225,
+    0.05,
+    0.005
+   ],
+   "pos_body": [
+    -0.31,
+    0.0,
+    0.112
+   ],
+   "quat_wxyz_body": [
+    0.939372685,
+    0.0,
+    0.342897885,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_thigh1_collision",
+   "body": "FL_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    -0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_thigh2_collision",
+   "body": "FL_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_thigh3_collision",
+   "body": "FL_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf1_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf2_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf3_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf4_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_foot_collision",
+   "body": "FL_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_thigh1_collision",
+   "body": "FR_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_thigh2_collision",
+   "body": "FR_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_thigh3_collision",
+   "body": "FR_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf1_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf2_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf3_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf4_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_foot_collision",
+   "body": "FR_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_thigh1_collision",
+   "body": "RL_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    -0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_thigh2_collision",
+   "body": "RL_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_thigh3_collision",
+   "body": "RL_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf1_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf2_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf3_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf4_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_foot_collision",
+   "body": "RL_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_thigh1_collision",
+   "body": "RR_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_thigh2_collision",
+   "body": "RR_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_thigh3_collision",
+   "body": "RR_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf1_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf2_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf3_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf4_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_foot_collision",
+   "body": "RR_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "os0_roof_adapter_geom",
+   "body": "os0_roof_adapter",
+   "type": "box",
+   "size": [
+    0.075,
+    0.0625,
+    0.01
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "os0_baseplate_geom",
+   "body": "os0_baseplate",
+   "type": "box",
+   "size": [
+    0.055,
+    0.055,
+    0.01125
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "os0_sensor_geom",
+   "body": "os0_sensor",
+   "type": "cylinder",
+   "size": [
+    0.0435,
+    0.029175
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  }
+ ]
+}

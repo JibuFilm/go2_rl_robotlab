@@ -60,6 +60,7 @@ class ActorCriticMoECTS(nn.Module):
         state_dependent_std: bool = False,
         latent_dim: int = 32,
         norm_type: str = 'l2norm',
+        proprio_dim: int | None = None,
         **kwargs: dict[str, Any],
     ) -> None:
         if kwargs:
@@ -87,9 +88,19 @@ class ActorCriticMoECTS(nn.Module):
         # MLP input dimensions (teacher, student, actor, critic)
         self.num_actor_obs = num_actor_obs
         self.num_single_obs = obs['single_obs'].shape[-1]
+        # A3/V5 perceptive student: when single_obs carries extra sensor terms beyond the
+        # proprio block (45 + 512 ranges = 557), the ACTOR still consumes only the leading
+        # `proprio_dim` slice (latent + obs(45) — actor interface unchanged; spatial info
+        # reaches actions through the latent only). Default None == full single_obs ==
+        # byte-identical pre-V5 behavior.
+        self.proprio_dim = int(proprio_dim) if proprio_dim is not None else self.num_single_obs
+        if not (0 < self.proprio_dim <= self.num_single_obs):
+            raise ValueError(
+                f"proprio_dim {self.proprio_dim} must be in (0, num_single_obs="
+                f"{self.num_single_obs}]")
         mlp_input_dim_t = num_critic_obs
         mlp_input_dim_s = num_actor_obs
-        mlp_input_dim_a = latent_dim + self.num_single_obs
+        mlp_input_dim_a = latent_dim + self.proprio_dim
         mlp_input_dim_c = latent_dim + num_critic_obs
 
         # Teacher encoder
@@ -218,7 +229,7 @@ class ActorCriticMoECTS(nn.Module):
                 obs_a = self.get_actor_obs(obs)
                 obs_a = self.actor_obs_normalizer(obs_a)
                 latent, _ = self.student_moe_encoder(obs_a)
-        latent_and_obs = torch.cat([latent, single_obs], dim=-1)
+        latent_and_obs = torch.cat([latent, single_obs[..., : self.proprio_dim]], dim=-1)
         self._update_distribution(latent_and_obs)
         return self.distribution.sample()
 
@@ -227,7 +238,7 @@ class ActorCriticMoECTS(nn.Module):
         obs_a = self.get_actor_obs(obs)
         obs_a = self.actor_obs_normalizer(obs_a)
         latent, _ = self.student_moe_encoder(obs_a)
-        latent_and_obs = torch.cat([latent, single_obs], dim=-1)
+        latent_and_obs = torch.cat([latent, single_obs[..., : self.proprio_dim]], dim=-1)
         if self.state_dependent_std:
             return self.actor(latent_and_obs)[..., 0, :]
         else:

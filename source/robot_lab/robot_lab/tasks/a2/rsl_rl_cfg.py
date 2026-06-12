@@ -19,3 +19,18 @@ class A2MoECTSRunnerCfg(MoECTSRunnerCfg):
     experiment_name = "a2_moe_cts"
     # class_name / num_steps_per_env / max_iterations / save_interval / policy /
     # algorithm all inherited from MoECTSRunnerCfg (go2) — unchanged.
+
+@configclass
+class RslRlMoeCtsV5ActorCriticCfg(RslRlMoeCtsActorCriticCfg):
+    """V5 (A3 perceptive student): the shared actor consumes ONLY the leading 45-dim proprio
+    slice of single_obs (latent + obs(45) — interface unchanged; the 512-dim range block
+    reaches actions through the latent only). Encoder/teacher/critic/latent/losses inherited
+    byte-for-byte; the student MoE encoder's first layer widens automatically from the obs."""
+
+    proprio_dim = 45
+
+
+@configclass
+class A2V5MoECTSRunnerCfg(A2MoECTSRunnerCfg):
+    experiment_name = "a2_v5_moe_cts"
+    policy = RslRlMoeCtsV5ActorCriticCfg()
