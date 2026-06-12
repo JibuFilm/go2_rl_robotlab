@@ -117,6 +117,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg_dict["robogauge"] = {
         "enabled": args_cli.robogauge,
         "port": args_cli.robogauge_port,
+        # eval-side: consumed by OnPolicyRunnerCTS.robogauge_task_name (WP2c param) — without
+        # this the A2 runs would silently score against the go2_lab task.
+        "task_name": args_cli.robogauge_task,
     }
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     agent_cfg.max_iterations = (
