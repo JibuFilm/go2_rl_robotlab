@@ -194,6 +194,67 @@ rsl_cfg_text = (A2_DIR / "rsl_rl_cfg.py").read_text()
 ok("V5 runner cfg: proprio_dim=45, new experiment name",
    "proprio_dim = 45" in rsl_cfg_text and 'experiment_name = "a2_v5_moe_cts"' in rsl_cfg_text)
 
+# ------------------------------------------------- [7] MERGED-BODY regression (V5 [V2] finding)
+# IsaacLab's URDF import folds the OS0 fixed links into base_link — the live articulation has
+# no os0_* bodies. resolve_to() must re-anchor those occluders onto base_link with the composed
+# static offset, producing IDENTICAL ranges to the unmerged kernel at the same physical pose.
+def _rand_quat(g):
+    q = torch.randn(4, generator=g, dtype=torch.float64)
+    return q / q.norm()
+
+
+gen = torch.Generator().manual_seed(7)
+kA = core.A3SelfOcclusionKernel(dtype=torch.float64)
+kB = core.A3SelfOcclusionKernel(dtype=torch.float64)
+full_bodies = list(kA.required_bodies)
+merged_bodies = [b for b in full_bodies if not b.startswith("os0_")]
+kB.resolve_to(merged_bodies)
+ok("resolve_to drops os0_* from required_bodies",
+   not any(b.startswith("os0_") for b in kB.required_bodies)
+   and set(kB.required_bodies) <= set(merged_bodies))
+
+table = core.load_body_geoms()["bodies"]
+base_p = torch.tensor([[0.3, -0.2, 0.45]], dtype=torch.float64)
+base_q = _rand_quat(gen).unsqueeze(0)
+poses = {"base_link": (base_p, base_q)}
+Rb = core.quat_to_mat(base_q[0])
+for b in full_bodies:
+    if b == "base_link":
+        continue
+    if b.startswith("os0_"):
+        ent = table[b]                          # welded: pose = base ∘ fixed offset
+        off_p = torch.tensor(ent["pos_in_parent"], dtype=torch.float64)
+        off_R = core.quat_to_mat(torch.tensor(ent["quat_wxyz_in_parent"], dtype=torch.float64))
+        p = base_p[0] + Rb @ off_p
+        Rw = Rb @ off_R
+        # rotation matrix -> wxyz quaternion (trace method; det=1 rotations here)
+        tr = Rw[0, 0] + Rw[1, 1] + Rw[2, 2]
+        w = torch.sqrt((1 + tr).clamp_min(1e-12)) / 2
+        q = torch.tensor([w, (Rw[2, 1] - Rw[1, 2]) / (4 * w),
+                          (Rw[0, 2] - Rw[2, 0]) / (4 * w),
+                          (Rw[1, 0] - Rw[0, 1]) / (4 * w)], dtype=torch.float64)
+        poses[b] = (p.unsqueeze(0), q.unsqueeze(0))
+    else:                                       # legs: arbitrary poses, fed identically to both
+        poses[b] = (torch.randn(1, 3, generator=gen, dtype=torch.float64) * 0.3 + base_p,
+                    _rand_quat(gen).unsqueeze(0))
+
+rA = kA.self_ranges(poses)
+rB = kB.self_ranges({b: poses[b] for b in kB.required_bodies})
+both = rA.isfinite() & rB.isfinite()
+agree_class = bool((rA.isfinite() == rB.isfinite()).all())
+dmax = float((rA[both] - rB[both]).abs().max()) if both.any() else 0.0
+ok("merged kernel == unmerged kernel (same physical pose)",
+   agree_class and dmax < 1e-9 and both.any(),
+   f"hits={int(both.sum())} max|Δ|={dmax:.2e}")
+
+# a JOINTED absent body must refuse (no silent approximation)
+kC = core.A3SelfOcclusionKernel(dtype=torch.float64)
+try:
+    kC.resolve_to([b for b in full_bodies if b != "FL_calf"])
+    ok("jointed-absent body raises (no silent approximation)", False)
+except RuntimeError as e:
+    ok("jointed-absent body raises (no silent approximation)", "JOINT" in str(e))
+
 print("-" * 78)
 n = sum(PASS)
 print(f"{'ALL PASS' if all(PASS) else 'FAILURES'}: {n}/{len(PASS)}")

@@ -170,6 +170,53 @@ class A3SelfOcclusionKernel:
             })
         self.required_bodies = sorted({g["body"] for g in self.geoms} | {self.parent_body})
 
+    def resolve_to(self, available_bodies) -> "A3SelfOcclusionKernel":
+        """Re-anchor occluders whose MJCF body is ABSENT from the live articulation onto their
+        nearest PRESENT ancestor, composing the static fixed-chain offset from the contract's
+        `bodies` kinematics table.
+
+        WHY (found live, V5 [V2] 2026-06-12): IsaacLab's URDF import MERGES fixed links — the
+        OS0 stack (os0_roof_adapter/baseplate/sensor) folds into base_link, so the articulation
+        has no such bodies. Their parent offsets are JOINTLESS (constant), so the composition
+        world_T_geom = world_T_ancestor . ancestor_T_body . body_T_geom is static and exact —
+        occluder world poses are unchanged. A hop across a JOINTED absent body is NOT static
+        and raises (no silent approximation). MuJoCo-side consumers never call this — deploy
+        and the G-A3-2 parity path stay byte-identical."""
+        avail = set(available_bodies)
+        table = self.body_geoms.get("bodies")
+        for g in self.geoms:
+            if g["body"] in avail:
+                continue
+            if not table:
+                raise RuntimeError(
+                    f"A3 kernel: body {g['body']!r} absent from the articulation and the "
+                    f"contract carries no `bodies` kinematics table — regenerate "
+                    f"a3_body_geoms_v1.json with a3_pattern.py --emit --fork")
+            body, pos, R = g["body"], g["pos"], g["R"]
+            hops = 0
+            while body not in avail:
+                ent = table.get(body)
+                if ent is None or not ent.get("jointless", False):
+                    raise RuntimeError(
+                        f"A3 kernel: cannot re-anchor geom on {g['body']!r}: hop from "
+                        f"{body!r} is missing from the table or crosses a JOINT — the "
+                        f"composed pose would not be static")
+                p_b = torch.tensor(ent["pos_in_parent"], device=self.device, dtype=self.dtype)
+                R_b = quat_to_mat(torch.tensor(ent["quat_wxyz_in_parent"], device=self.device,
+                                               dtype=self.dtype))
+                pos = p_b + R_b @ pos
+                R = R_b @ R
+                body = ent["parent"]
+                hops += 1
+                if hops > 8:
+                    raise RuntimeError(f"A3 kernel: ancestor chain too deep from {g['body']!r}")
+            g["body"], g["pos"], g["R"] = body, pos, R
+        self.required_bodies = sorted({g["body"] for g in self.geoms} | {self.parent_body})
+        missing = [b for b in self.required_bodies if b not in avail]
+        if missing:
+            raise RuntimeError(f"A3 kernel: bodies still unresolved after re-anchoring: {missing}")
+        return self
+
     def to(self, device):
         """Move all constant tensors (call once when the env device is known)."""
         self.device = torch.device(device)

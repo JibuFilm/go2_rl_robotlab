@@ -62,11 +62,10 @@ def _get_kernel(env: "ManagerBasedRLEnv", asset_name: str):
         kernel = A3SelfOcclusionKernel(device=env.device)
         asset = env.scene[asset_name]
         body_names = list(asset.body_names)
-        missing = [b for b in kernel.required_bodies if b not in body_names]
-        if missing:
-            raise RuntimeError(
-                f"A3 kernel: articulation lacks geom bodies {missing} "
-                f"(have {body_names}) — MJCF/URDF body-name mismatch")
+        # IsaacLab's URDF import MERGES fixed links (the OS0 stack folds into base_link) —
+        # re-anchor such occluders onto their nearest present ancestor with the composed
+        # static offset (raises on any non-static hop; found live at V5 [V2] 2026-06-12).
+        kernel.resolve_to(body_names)
         idx = {b: body_names.index(b) for b in kernel.required_bodies}
         _KERNEL_CACHE[key] = (kernel, idx)
     return _KERNEL_CACHE[key]

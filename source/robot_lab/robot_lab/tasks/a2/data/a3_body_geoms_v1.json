@@ -3,6 +3,188 @@
  "version": "a3_pattern_v1_provisional_2026-06-12",
  "source_mjcf": "/Users/jibujin/Developer/PerceptionGame/tools/gear_sonic_fk/out/a2_sensorized/a2_sensorized.xml",
  "size_semantics": "mujoco: sphere [r]; cylinder [r, half_height] about local z; box half-extents",
+ "bodies": {
+  "RL_calf": {
+   "parent": "RL_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "os0_baseplate": {
+   "parent": "base_link",
+   "pos_in_parent": [
+    0.2143,
+    0.0,
+    0.1058
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": true
+  },
+  "base_link": {
+   "parent": "world",
+   "pos_in_parent": [
+    -1.0,
+    1.0,
+    0.6
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "RL_thigh": {
+   "parent": "RL_hip",
+   "pos_in_parent": [
+    0.0,
+    0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "RR_calf": {
+   "parent": "RR_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "FR_thigh": {
+   "parent": "FR_hip",
+   "pos_in_parent": [
+    0.0,
+    -0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "os0_sensor": {
+   "parent": "base_link",
+   "pos_in_parent": [
+    0.2143,
+    0.0,
+    0.1462
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": true
+  },
+  "FR_calf": {
+   "parent": "FR_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "FL_calf": {
+   "parent": "FL_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "os0_roof_adapter": {
+   "parent": "base_link",
+   "pos_in_parent": [
+    0.2073,
+    0.0,
+    0.0845
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": true
+  },
+  "RR_thigh": {
+   "parent": "RR_hip",
+   "pos_in_parent": [
+    0.0,
+    -0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "FL_thigh": {
+   "parent": "FL_hip",
+   "pos_in_parent": [
+    0.0,
+    0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  }
+ },
  "census_collision_active": {
   "box": 31,
   "cylinder": 5,
