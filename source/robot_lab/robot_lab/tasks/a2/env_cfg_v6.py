@@ -59,14 +59,15 @@ class A2V6EnvCfg(A2V5EnvCfg):
         cmd.ranges.lin_vel_y = [-1.0, 1.0]
         cmd.ranges.ang_vel_yaw = [-2.0, 2.0]
 
-        # 2. Graded ramp to the 5 m/s bar, iters RELATIVE TO V6's OWN run from 0 (clock resets -- docstring).
-        #    PROVENANCE: re-derived for the A2 envelope (SSOT §3). Warm-start schedule (walks -> ramp early);
-        #    final stage ~iter 40k => a ~40-45k V6 run reaches +/-5.0. Retune the last iter to the run length.
+        # 2. FAST ramp to the 5 m/s peak (OFFICIAL spec: 0-3.7 sustained, ~5 peak -- SSOT §3), iters
+        #    RELATIVE TO V6's OWN run from 0 (clock resets -- docstring). WARM-START pace: the V5 seed
+        #    already walks, so ramp early; full +/-5.0 reached by clock-iter 10000 (~33h @ 8192).
+        #    PROVENANCE: re-derived for the A2 envelope, NOT go2's +/-2.0. Retune iters to the run length.
         cmd.command_range_curriculum = [
-            {'iter': 6000,  'lin_vel_x': [-2.5, 2.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            {'iter': 16000, 'lin_vel_x': [-3.5, 3.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
-            {'iter': 28000, 'lin_vel_x': [-4.5, 4.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
-            {'iter': 40000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 500,   'lin_vel_x': [-2.5, 2.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
+            {'iter': 2500,  'lin_vel_x': [-3.5, 3.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 6000,  'lin_vel_x': [-4.5, 4.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 10000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
         ]
 
         # 3. Flat = the sprint axis -> full envelope. Non-flat caps stay conservative (you can't sprint
