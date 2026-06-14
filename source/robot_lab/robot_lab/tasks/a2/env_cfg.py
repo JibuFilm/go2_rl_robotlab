@@ -120,6 +120,11 @@ class A2SceneCfg(InteractiveSceneCfg):
 @configclass
 class CommandsCfg:
     """Command specifications for the MDP."""
+    # ⚠️ PROVENANCE / KNOWN-DRIFT: Go2RLGymCommandCfg ships GO2's speed numbers (initial
+    # ranges.lin_vel_x ±0.5, curriculum opening at iter 20k/50k, terrain caps ±1.5/2.0). The A2 is
+    # a 41.55 kg / 120-180 N·m machine good for ~3.6-5.4 m/s (info/locomotion/A2_CAPABILITY_SSOT.md).
+    # These go2 values are FROZEN here for V5 reproducibility; the A2-TRANSLATED speed domain lives in
+    # env_cfg_v6.py (RobotLab-A2-V6-v0). Do NOT silently reuse these for a new A2 run — see the SSOT.
     base_velocity = mdp.Go2RLGymCommandCfg()
 
 @configclass
@@ -271,6 +276,9 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=BASE_LINK_NAME),
+            # ⚠️ PROVENANCE / KNOWN-DRIFT: ±1.0 kg is go2-absolute (±6.2% on go2's 16 kg, but only
+            # ±2.4% on the A2's 41.55 kg → under-randomized). Frozen for V5; corrected to ±2.6 kg in
+            # env_cfg_v6.py. See A2_CAPABILITY_SSOT.md §4.
             "mass_distribution_params": (-1.0, 1.0),
             "operation": "add",
             "recompute_inertia": True,
@@ -381,6 +389,8 @@ class RewardsCfg:
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp_dynamic_sigma,
         weight=1.0,
+        # ⚠️ PROVENANCE / KNOWN-DRIFT: v_max 1.5 is go2's speed band ("from go2_config.py"); the σ
+        # tolerance is keyed to go2 speeds. Frozen for V5; widened to v_max 5.0 in env_cfg_v6.py.
         params={"command_name": "base_velocity", "std": 0.5, "v_min": 0.5, "v_max": 1.5}
     )
     track_ang_vel_z_exp = RewTerm(
