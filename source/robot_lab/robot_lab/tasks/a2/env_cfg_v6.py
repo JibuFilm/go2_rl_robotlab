@@ -22,13 +22,18 @@ DELTA over A2V5EnvCfg (sensorium, reward balance, Gate-T energy weights all inhe
 
 PROVENANCE: every value below traces to A2_CAPABILITY_SSOT.md, NOT to the Go2 fork.
 
-!! LAUNCH-COUPLED (read before running) -- the command_range_curriculum `iter` milestones depend on
-   the launch plan. rsl_rl's step counter CONTINUES on resume, so a WARM-START from V5's ~10k walker
-   means thresholds must be > 10000. The schedule below assumes the RECOMMENDED plan:
-       WARM-START from V5's ~10k walker, ramping to +/-5.0 by ~iter 42k (+32k of training; "not in a rush").
-   For a FRESH-from-scratch run instead: lower `ranges.lin_vel_x` to +/-0.5..1.0 (let it learn to walk
-   slow first) and shift the curriculum to start later. Retune the iters to the chosen run length --
-   do NOT run as-is under a different plan.
+!! LAUNCH-COUPLED (read before running) -- the command_range_curriculum `iter` milestones are gated by
+   `env.common_step_counter // num_steps_per_iter`, and that clock RESETS TO 0 on every launch/resume
+   (VERIFIED 2026-06-14: common_step_counter is an env attribute incremented in go2_env.step; rsl_rl's
+   runner.load() restores only the policy + logging iteration, NOT the env step counter -- which is also
+   why V5 never escaped +/-0.5: its clock reset on each relaunch and never neared the 20k trigger). So
+   these iters are RELATIVE TO V6's OWN run from 0, regardless of warm-start.
+   DEFINITIVE CHECK before trusting: the command term prints "Command range updated at iter X" when a
+   stage fires -- confirm that line in a smoke (the only residual is whether the forked rsl_rl restores
+   the counter; the print settles it).
+   Schedule below assumes WARM-START from V5's ~10k walker (already walks -> ramp early, from 0). For a
+   FRESH run: lower initial `ranges.lin_vel_x` to +/-0.5..1.0 and stretch the milestones. Retune to the
+   chosen run length -- do NOT run as-is under a different plan.
 """
 from __future__ import annotations
 
@@ -46,19 +51,22 @@ class A2V6EnvCfg(A2V5EnvCfg):
 
         cmd = self.commands.base_velocity
 
-        # 1. INITIAL range -- binds on any run that hasn't reached the curriculum yet.
+        # 1. INITIAL range -- binds from iter 0 until the first curriculum stage. The curriculum clock
+        #    resets to 0 on launch (docstring), so a WARM-STARTED walker is commanded this from the start.
         #    PROVENANCE: TRANSLATED from go2 ranges.lin_vel_x +/-0.5 -> A2 working band (SSOT §3).
-        #    +/-2.0 assumes a WARM-STARTED walker; for a FRESH run drop to +/-0.5..1.0.
-        cmd.ranges.lin_vel_x = [-2.0, 2.0]
+        #    +/-1.5 ~ where the V5 walker already extrapolates to; for a FRESH run drop to +/-0.5..1.0.
+        cmd.ranges.lin_vel_x = [-1.5, 1.5]
         cmd.ranges.lin_vel_y = [-1.0, 1.0]
         cmd.ranges.ang_vel_yaw = [-2.0, 2.0]
 
-        # 2. Graded ramp to the 5 m/s bar. PROVENANCE: re-derived for the A2 envelope (SSOT §3).
-        #    !! iters assume WARM-START from ~10k (counter continues) -- see module docstring to retune.
+        # 2. Graded ramp to the 5 m/s bar, iters RELATIVE TO V6's OWN run from 0 (clock resets -- docstring).
+        #    PROVENANCE: re-derived for the A2 envelope (SSOT §3). Warm-start schedule (walks -> ramp early);
+        #    final stage ~iter 40k => a ~40-45k V6 run reaches +/-5.0. Retune the last iter to the run length.
         cmd.command_range_curriculum = [
-            {'iter': 18000, 'lin_vel_x': [-3.0, 3.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            {'iter': 28000, 'lin_vel_x': [-4.0, 4.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
-            {'iter': 42000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 6000,  'lin_vel_x': [-2.5, 2.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
+            {'iter': 16000, 'lin_vel_x': [-3.5, 3.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 28000, 'lin_vel_x': [-4.5, 4.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 40000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
         ]
 
         # 3. Flat = the sprint axis -> full envelope. Non-flat caps stay conservative (you can't sprint
