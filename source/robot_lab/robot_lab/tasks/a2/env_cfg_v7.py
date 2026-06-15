@@ -1,13 +1,16 @@
 # Copyright (c) 2026 PerceptionGame Path-A fork
 # SPDX-License-Identifier: Apache-2.0
 #
-"""A2 V7 env cfg — ROBUSTNESS first (info/locomotion/V7_ROBUSTNESS_RECIPE.md).
+"""A2 V7 env cfg — ROBUSTNESS + 5 m/s SPRINT, together (info/locomotion/V7_ROBUSTNESS_RECIPE.md).
 
-Redirected from V6's forward-speed sprint to balance / landing / turning / agility, after driving the
-iter-7000 V5 student exposed those gaps (and the deterministic forward probe was blind to them — see
-[[feedback-call-off-failing-runs]]). Inherits V5's A3 perceptive-student sensorium byte-for-byte;
-the deltas are the speed needed to CLIMB the terrain curriculum + the rewards/events/terrains that
-force balance.
+V7 began as the robustness pivot off V6's pure forward-speed sprint (balance / landing / turning /
+agility — gaps exposed by driving the iter-7000 V5 student; the deterministic forward probe was blind
+to them, see [[feedback-call-off-failing-runs]]). The user then chose "BOTH AT ONCE" (2026-06-14): keep
+the robustness deltas AND restore the 5 m/s flat-sprint band, in one run. This is coherent because the
+per-terrain command caps let a SINGLE policy sprint on flat (cap ±5.0) while stepping carefully on hard
+terrain (caps ±1.5-2.0) — sprint is a flat behavior. Inherits V5's A3 perceptive-student sensorium
+byte-for-byte; the deltas are the speed (to sprint flat + climb the terrain curriculum) + the
+rewards/events/terrains that force balance/landing/turning.
 
 THE PIVOT THESIS (V7_ROBUSTNESS_RECIPE §Thesis, verified against the fork here):
   The terrain is NOT the gap — we already train on Wu's rich TERRAIN_CFG (gym-parity, 10 difficulty
@@ -28,7 +31,11 @@ THE PIVOT THESIS (V7_ROBUSTNESS_RECIPE §Thesis, verified against the fork here)
      on the hard rows and climb into the terrain that teaches balance.
 
 DELTA over A2V5EnvCfg (sensorium, CTS/MoE wiring, Gate-T energy weights all inherited byte-for-byte):
-  1. Command ranges + per-terrain caps raised to traversal speeds (unlock the terrain gym).
+  1. Command = a UNIFORM TOP-SPEED CEILING ±5.0 on EVERY terrain (global ramp → ±5.0; all per-terrain
+     caps → ±5.0). The command is "go as fast as you can," NOT a per-terrain target — dynamic-σ (item 9)
+     rewards the fastest FEASIBLE speed per terrain (≈5 flat, whatever stairs/gaps allow), so the policy
+     finds each terrain's max instead of us guessing caps. Lifts go2's low inherited caps (stairs ±1.0 =
+     the original stall). "Both at once" (user 2026-06-14): robust terrain AND the 5 m/s flat peak in one run.
   2. resampling_time 5.0 → 3.0 — more frequent command CHANGES (trains direction transitions, not just
      steady holds; the "not robust to direction" symptom).
   3. Turning: track_ang_vel_z_exp.weight 0.5 → 1.0 (parity with linear tracking).
@@ -37,11 +44,12 @@ DELTA over A2V5EnvCfg (sensorium, CTS/MoE wiring, Gate-T energy weights all inhe
   6. Smoothness: action_rate_l2 / action_smoothness_l2 -0.01 → -0.02.
   7. Terrain: enable the balance terrains stepping_stones (0→0.08) + gap (0→0.05), renormalized.
   8. base-mass DR ±1.0 → ±2.6 kg (the V6-blessed fraction-match; aids mass/push robustness).
-  9. dynamic-σ v_max 1.5 → 3.5 (track the V7 top speed, NOT V6's 5.0 sprint).
+  9. dynamic-σ v_max 1.5 → 5.0 (track the full flat-sprint band).
 
 PROVENANCE (the load-bearing rule — A2_CAPABILITY_SSOT.md §Provenance): every value is re-derived for
-the A2 or blessed; no silent go2 transcription. Speeds are set for TRAVERSAL (cross 4 m on hard rows),
-keyed to the A2 envelope ~3.6–5.4 m/s (SSOT §3), not copied from go2's ±0.5/±2.0.
+the A2 or blessed; no silent go2 transcription. The flat sprint band is keyed to the A2 envelope
+~3.6–5.4 m/s / official ~5 PEAK (SSOT §3; sustained is ~3.7 — 5.0 is a peak bar). Hard-terrain caps are
+set for TRAVERSAL (cross 4 m to climb the curriculum), not for go2's ±0.5/±2.0.
 
 !! LAUNCH-COUPLED (inherits the V6 lesson, commit 070ded5): the command_range_curriculum `iter`
    milestones are gated by `env.common_step_counter // num_steps_per_iter` (=24), and that clock
@@ -123,31 +131,29 @@ class A2V7EnvCfg(A2V5EnvCfg):
         cmd.ranges.lin_vel_y = [-0.6, 0.6]
         cmd.ranges.ang_vel_yaw = [-2.0, 2.0]
 
-        # Moderate ramp to ±3.5 (traversal, NOT V6's 5 m/s sprint). Iters RELATIVE to V7's own run from 0.
-        # PROVENANCE: A2 envelope ~3.6–5.4 (SSOT §3) — set so the robot crosses 4 m on hard rows, not for peak.
+        # Ramp to ±5.0 — the "BOTH AT ONCE" choice (user 2026-06-14): V7 pursues robust terrain AND the
+        # 5 m/s flat sprint in ONE run. The per-terrain caps below keep this coherent (sprint band only
+        # applies on flat; hard terrain stays clamped 1.5-2.0). Iters RELATIVE to V7's own run from 0.
+        # PROVENANCE: A2 envelope ~3.6–5.4 / official ~5 peak (SSOT §3). 5.0 is a PEAK bar (sustained ~3.7).
         cmd.command_range_curriculum = [
             {'iter': 500,   'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.0, 2.0]},
-            {'iter': 3000,  'lin_vel_x': [-2.5, 2.5], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
-            {'iter': 8000,  'lin_vel_x': [-3.0, 3.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
-            {'iter': 15000, 'lin_vel_x': [-3.5, 3.5], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 3000,  'lin_vel_x': [-3.0, 3.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 8000,  'lin_vel_x': [-4.0, 4.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 15000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
         ]
 
-        # THE ACTUAL UNLOCK: raise the PER-TERRAIN caps. The global ramp above is clamped per terrain by
-        # this dict (commands.py:_update_env_command_ranges). go2 capped hard terrain at ±1.0 → the robot
-        # could never be commanded fast enough to cross 4 m on stairs → curriculum stalled. Moderate raises
-        # below let it traverse + climb. Non-listed (robotlab-default) terrains keep their inherited caps.
+        # UNIFORM TOP-SPEED CEILING (user methodology correction, 2026-06-14): the command is NOT a
+        # per-terrain target — it's a "go as fast as you can" ceiling, identical across terrains. The
+        # dynamic-σ tracking reward (v_max 5.0 below) widens tolerance at high commands, so the policy is
+        # rewarded for the FASTEST FEASIBLE speed on each terrain (≈5 on flat, whatever stairs/gaps allow)
+        # without being punished for not hitting 5 on a staircase. So we lift go2's low inherited caps
+        # (stairs ±1.0 = the original stall) to the SAME 5.0 everywhere and let physics + fall-penalties +
+        # the terrain curriculum find each terrain's real max. (Watch the `Curriculum/terrain_levels` metric:
+        # demotion keys off commanded distance, so the curriculum self-balances to the policy's capability —
+        # expected, not a fault. If hard rows never climb, revisit.)
+        _TOP = {'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]}
         cmd.terrain_max_command_ranges = {
-            **cmd.terrain_max_command_ranges,
-            'flat':            {'lin_vel_x': [-2.5, 2.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'slope_up':        {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'slope_down':      {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'rough_slope':     {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'wave':            {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'stairs_up':       {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'stairs_down':     {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'obstacles':       {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0]},
-            'stepping_stones': {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-0.8, 0.8], 'ang_vel_yaw': [-1.5, 1.5]},
-            'gap':             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-0.8, 0.8], 'ang_vel_yaw': [-1.5, 1.5]},
+            k: dict(_TOP) for k in cmd.terrain_max_command_ranges
         }
 
         # 2. More frequent command CHANGES (direction transitions, not steady holds). Couples (benignly)
@@ -159,8 +165,8 @@ class A2V7EnvCfg(A2V5EnvCfg):
         # ------------------------------------------------------------------ #
         # Turning to parity with linear tracking.
         self.rewards.track_ang_vel_z_exp.weight = 1.0
-        # dynamic-σ tolerance tracks the V7 top speed (NOT V6's 5.0 sprint). PROVENANCE: V7 ramp top ±3.5.
-        self.rewards.track_lin_vel_xy_exp.params["v_max"] = 3.5
+        # dynamic-σ tolerance scales to the full V7 speed band (the "both at once" 5 m/s flat sprint).
+        self.rewards.track_lin_vel_xy_exp.params["v_max"] = 5.0
         # Balance: stronger roll/pitch-rate penalty.
         self.rewards.ang_vel_xy_l2.weight = -0.1
         # Smoothness: firmer action-rate / action-smoothness.
