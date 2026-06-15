@@ -52,6 +52,19 @@ gym.register(
     },
 )
 
+# V7 = V5 sensorium + robustness-first deltas (unlock terrain via speed + per-terrain caps; balance/
+# turning/landing rewards; stepping_stones+gap enabled). Reuses the V5 runner cfg (network unchanged —
+# the delta is env-side: command ranges, rewards, events, terrain proportions). See env_cfg_v7.py.
+gym.register(
+    id="RobotLab-A2-V7-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v7:A2V7EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V5MoECTSRunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package
