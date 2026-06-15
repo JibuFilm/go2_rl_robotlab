@@ -51,13 +51,16 @@ the A2 or blessed; no silent go2 transcription. The flat sprint band is keyed to
 ~3.6–5.4 m/s / official ~5 PEAK (SSOT §3; sustained is ~3.7 — 5.0 is a peak bar). Hard-terrain caps are
 set for TRAVERSAL (cross 4 m to climb the curriculum), not for go2's ±0.5/±2.0.
 
-!! LAUNCH-COUPLED (inherits the V6 lesson, commit 070ded5): the command_range_curriculum `iter`
-   milestones are gated by `env.common_step_counter // num_steps_per_iter` (=24), and that clock
-   RESETS TO 0 on every launch/resume (rsl_rl runner.load restores policy+logging iter, NOT the env
-   step counter). So the milestones below are RELATIVE TO V7's OWN run from 0, regardless of warm-start.
-   Confirm in a smoke: the term prints "Command range updated at iter X" when a stage fires.
-   Schedule assumes WARM-START from V5's iter-7000 walker (already walks ±0.5 → ramp gently off that
-   floor, NOT a 4× shock). For a FRESH run, lower the initial ranges and stretch the milestones.
+!! CURRICULUM CLOCK — now CONTINUOUS across segments (train.py resume-continuity fix, 2026-06-15):
+   the command_range_curriculum `iter` milestones are gated by `env.common_step_counter //
+   num_steps_per_iter` (=24). That counter lives on the ENV (rebuilt to 0 each launch); rsl_rl's
+   runner.load() restores policy+logging-iter but NOT the env counter — so historically the clock RESET
+   to 0 on every resume (the bug that pinned V5 at ±0.5 and would cap a segmented speed ramp). FIXED in
+   scripts/rsl_rl/train.py: after load, common_step_counter is restored from the checkpoint iter
+   (counter = iter × num_steps_per_env). So the milestones below are now ABSOLUTE CUMULATIVE iters and
+   the ramp continues correctly across segments. Confirm in a smoke: the load prints "resume curriculum
+   continuity — common_step_counter set to N", and "Command range updated at iter X" fires at the right X.
+   The same fix also restores gradual_reward_weight_modification (base_height_l2 / lin_vel_z_l2 ramps).
 
 RUN LENGTH (set at launch, not here): the 10-row gym curriculum needs real iters to reach the high rows
    — target ≥40–50k, or until terrain levels plateau (V7_ROBUSTNESS_RECIPE §1). V5/V6's 8–10k never
@@ -125,21 +128,24 @@ class A2V7EnvCfg(A2V5EnvCfg):
         # ------------------------------------------------------------------ #
         cmd = self.commands.base_velocity
 
-        # Initial range — binds from iter 0 (curriculum clock resets, docstring). Gentle step off the V5
-        # ±0.5 walker (avoid a 4× warm-start shock); yaw generous from the start (turning is a V7 goal).
-        cmd.ranges.lin_vel_x = [-1.0, 1.0]
+        # Initial range — where the policy currently is (seg-1 ended at ±2.0 @ iter ~9000). Binds until
+        # the first curriculum stage above the resume iter fires. NOTE: with the train.py resume-continuity
+        # fix (2026-06-15), the curriculum clock is now CONTINUOUS across segments, so these milestones are
+        # ABSOLUTE cumulative iters — set ±2.0 initial so a seg-2 resume at ~9000 continues smoothly (no
+        # stage ≤9000 → stays ±2.0) instead of jumping. (Fresh run would also start ±2.0 — warm-start era.)
+        cmd.ranges.lin_vel_x = [-2.0, 2.0]
         cmd.ranges.lin_vel_y = [-0.6, 0.6]
         cmd.ranges.ang_vel_yaw = [-2.0, 2.0]
 
-        # Ramp to ±5.0 — the "BOTH AT ONCE" choice (user 2026-06-14): V7 pursues robust terrain AND the
-        # 5 m/s flat sprint in ONE run. The per-terrain caps below keep this coherent (sprint band only
-        # applies on flat; hard terrain stays clamped 1.5-2.0). Iters RELATIVE to V7's own run from 0.
+        # Ramp to ±5.0 — the "BOTH AT ONCE" choice (user 2026-06-14): robust terrain AND the 5 m/s flat
+        # sprint in ONE run. ABSOLUTE cumulative-iter milestones (clock now continuous — train.py fix), a
+        # GRADUAL ramp from the current ±2.0 (iter ~9000) to ±5.0 by iter 18000. The uniform per-terrain
+        # ceilings + dynamic-σ (v_max 5.0) make the policy drive as fast as feasible per terrain.
         # PROVENANCE: A2 envelope ~3.6–5.4 / official ~5 peak (SSOT §3). 5.0 is a PEAK bar (sustained ~3.7).
         cmd.command_range_curriculum = [
-            {'iter': 500,   'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.0, 2.0]},
-            {'iter': 3000,  'lin_vel_x': [-3.0, 3.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
-            {'iter': 8000,  'lin_vel_x': [-4.0, 4.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
-            {'iter': 15000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 11000, 'lin_vel_x': [-3.0, 3.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 14000, 'lin_vel_x': [-4.0, 4.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 18000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-0.6, 0.6], 'ang_vel_yaw': [-2.5, 2.5]},
         ]
 
         # UNIFORM TOP-SPEED CEILING (user methodology correction, 2026-06-14): the command is NOT a
