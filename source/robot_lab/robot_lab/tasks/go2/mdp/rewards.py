@@ -695,3 +695,60 @@ def track_ang_vel_z_exp_dynamic_sigma(
     sigma = _dynamic_sigma_per_env(env, torch.abs(cmd[:, 2]), default_sigma, v_min, v_max)
     ang_vel_error_sq = torch.square(cmd[:, 2] - asset.data.root_ang_vel_b[:, 2])
     return torch.exp(-ang_vel_error_sq / sigma)
+
+
+def track_lin_vel_dial(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    eps: float = 0.1,
+) -> torch.Tensor:
+    """The 'self-finding speed dial' linear-velocity reward — NOT a setpoint tracker.
+
+    Reads the velocity command as a CAP + DIRECTION, never as a target to hit. Rewards the body's
+    forward speed PROJECTED onto the commanded direction, clamped to [0, |cmd|]. Crucially there is
+    NO penalty for achieving less than the command, so commanding an infeasible 5 m/s on a staircase
+    does NOT drag the policy into reckless over-speeding — the pathology of the exp-kernel setpoint
+    tracker (`track_lin_vel_xy_exp[_dynamic_sigma]`), whose dynamic-sigma keeps a 'go faster' gradient
+    alive even when the command is physically unreachable.
+
+    With a single UNIFORM high cap on every terrain, the terrain-appropriate ceiling emerges
+    ENDOGENOUSLY: the policy accelerates until the marginal safety penalties (orientation / contact /
+    vertical-bounce / fall-termination), which grow with speed and with terrain difficulty, overtake
+    this bounded speed bonus. So one policy sprints on flat and steps carefully on stairs from the
+    same command — the dial the user wants. Zero-command envs get 0 (stand-still is shaped elsewhere).
+
+    Tuning: the term WEIGHT sets where the emergent ceiling lands (too high → reckless everywhere;
+    too low → lazy everywhere). It is the primary knob and is set empirically from a smoke run.
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)[:, :2]
+    cmd_norm = torch.norm(cmd, dim=1)
+    moving = (cmd_norm > eps).float()
+    direction = cmd / cmd_norm.clamp_min(eps).unsqueeze(1)
+    v_along = torch.sum(asset.data.root_lin_vel_b[:, :2] * direction, dim=1)
+    # forward progress along the command, capped at the commanded magnitude; never negative
+    reward = torch.clamp(v_along, min=0.0)
+    reward = torch.minimum(reward, cmd_norm)
+    return reward * moving
+
+
+def lin_vel_lateral_l2(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    eps: float = 0.1,
+) -> torch.Tensor:
+    """Penalize planar body velocity PERPENDICULAR to the commanded direction (heading-keeping for the
+    `track_lin_vel_dial` reward, which only rewards on-axis speed — without this, 'as fast as you can'
+    could be satisfied by veering). Motion ALONG the command (including a commanded y component) is not
+    penalized. For zero-command envs the commanded direction collapses to ~0, so v_perp == v_xy and the
+    term penalizes ALL planar drift — i.e. it doubles as a 'don't wander while stopped' penalty."""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)[:, :2]
+    v_xy = asset.data.root_lin_vel_b[:, :2]
+    cmd_norm = torch.norm(cmd, dim=1, keepdim=True)
+    direction = cmd / cmd_norm.clamp_min(eps)
+    v_along = torch.sum(v_xy * direction, dim=1, keepdim=True)
+    v_perp = v_xy - v_along * direction
+    return torch.sum(torch.square(v_perp), dim=1)
