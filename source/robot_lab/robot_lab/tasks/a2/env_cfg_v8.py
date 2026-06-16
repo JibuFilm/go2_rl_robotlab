@@ -44,9 +44,11 @@ the cap that was wrong for a setpoint tracker is exactly right as a dial maximum
   1. DISABLE the setpoint tracker: track_lin_vel_xy_exp.weight 1.0 → 0.0.
   2. ADD track_lin_vel_dial (weight 0.35 — THE tuning knob; see note) as the speed driver.
   3. ADD lin_vel_lateral_l2 (weight -0.5) for heading-keeping.
-  4. Command = the dial maxed from iter 0: ranges.lin_vel_x ±5.0, NO command_range_curriculum ramp
-     (the dial has no undershoot cliff, so a high cap is safe to warm-start straight into; and the
-     ramp is unnecessary once the policy self-limits). Uniform ±5.0 per-terrain caps kept from V7.
+  4. Command = a CAP RAMP ±2.0 → ±5.0 (the dial's MAX grows with competence). NOTE: the first V8 smoke
+     tried ±5.0 from iter 0 and the warm-started walker COLLAPSED (99% falls by iter ~50) — the dial's
+     no-undershoot-penalty does not stop the policy *trying* to reach an out-of-distribution command, so
+     a velocity cap ramp is still required for warm-start. At each cap level the dial self-limits per
+     terrain (orthogonal). Uniform ±5.0 per-terrain caps kept from V7 (they don't bind below the ramp).
 
 TUNING (the one empirical unknown — set by a smoke run, NOT guessable a priori):
   The dial weight (0.35) sets where the emergent ceiling lands. Too high → reckless everywhere (the
@@ -103,13 +105,30 @@ class A2V8EnvCfg(A2V7EnvCfg):
 
         cmd = self.commands.base_velocity
 
-        # The dial maxed from the start: a uniform high CAP on every terrain (terrain_max_command_ranges
-        # is already uniform ±5.0 from V7), and NO ramp — the dial has no undershoot cliff, so warm-
-        # starting straight into a high cap is safe, and the policy self-limits per terrain anyway.
-        cmd.ranges.lin_vel_x = [-5.0, 5.0]
+        # CAP RAMP — start near the warm-start walker's competence, grow the dial's MAX as competence
+        # builds. The terrain_max_command_ranges are uniform ±5.0 (from V7) but DON'T bind below the
+        # global range (env cap = min(global, terrain)), so the global ramp IS the dial cap everywhere.
+        #
+        # !! SMOKE-1 LESSON (2026-06-16): the original V8 set ±5.0 from iter 0 ("the dial has no undershoot
+        #    cliff so a high cap is safe"). FALSE for a WARM-START — the dial's no-undershoot-penalty stops
+        #    the SETPOINT pathology, but it does NOT stop the policy from *trying* to accelerate toward a
+        #    wildly out-of-distribution command. A V5 walker (trained ±0.5, probes to ~1.33) handed ±5
+        #    instantly lunged, fell, and collapsed: illegal_contact 0.77→0.99 by iter ~50, terrain_levels
+        #    1.53→0.43 (curriculum floored). So the dial needs a competence-tracking cap ramp like any
+        #    velocity curriculum. (At each cap level the dial STILL self-limits per terrain — orthogonal.)
+        #
+        # Milestones are ABSOLUTE cumulative iters (train.py resume-continuity fix). Warm-start from V5
+        # model_7000 → clock starts at 7000, so a SMOKE (~700 iters) stays at the ±2.0 start (clean test of
+        # "does the dial keep the walker alive at a safe cap"); the FULL run (≥40-50k) climbs to ±5.0.
+        # LAUNCH-COUPLED: these iters assume the V5-warm-start full run; re-tune to the chosen length.
+        cmd.ranges.lin_vel_x = [-2.0, 2.0]
         cmd.ranges.lin_vel_y = [-1.0, 1.0]
         cmd.ranges.ang_vel_yaw = [-2.5, 2.5]
-        cmd.command_range_curriculum = []
+        cmd.command_range_curriculum = [
+            {'iter': 15000, 'lin_vel_x': [-3.0, 3.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 28000, 'lin_vel_x': [-4.0, 4.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+            {'iter': 42000, 'lin_vel_x': [-5.0, 5.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.5, 2.5]},
+        ]
 
         # Disable the setpoint tracker — track_lin_vel_dial replaces it. (Kept at weight 0 rather than
         # removed so its per-component reward still logs as 0; the dynamic-σ compute at weight 0 is cheap.)
