@@ -511,6 +511,39 @@ def base_height_l2(
     return reward
 
 
+def base_height_huber(
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    delta: float = 0.06,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg | None = None,
+) -> torch.Tensor:
+    """Transient-tolerant base-height penalty — the V9 stair-INITIATION fix (Path-A fork).
+
+    Identical to ``base_height_l2`` for clearance errors within ``delta`` (flat-ground stance
+    discipline is UNCHANGED — same quadratic spring), but beyond ``delta`` the penalty grows only
+    LINEARLY instead of quadratically (value AND slope are continuous at ``delta``).
+
+    WHY (info/locomotion/HANDOFF.md, the V9 block): ``_get_base_height`` estimates ground as the MEAN
+    of the height-scan ray hits. At a stair's flat->riser boundary the scan patch under the base
+    straddles two levels, so the estimated clearance spikes transiently — and with the
+    curriculum-ramped -10.0 weight, the L2 (quadratic) kernel turns that brief spike into a WALL the
+    dial reward cannot pay to cross, so the policy never takes the first step (confirmed: A2 walks
+    stairs in-sim but won't initiate; RoboGauge stairs_fd/bd = 0.00, rolls over). This kernel
+    de-escalates the brief LARGE excursion of mounting a step while still spring-loading the SUSTAINED
+    clearance error that keeps the flat sprint from crouching/bouncing. Terrain-AGNOSTIC reward
+    SHAPING — no per-terrain gate, no added positive — so the dial's own forward-progress drive climbs
+    the stairs endogenously (emergent, per the dial design). ``delta`` is the quad->linear knob
+    (smoke-tuned; 0.06 m forgives a typical step's scan straddle while staying tight on flat bounce).
+    """
+    base_height = _get_base_height(env, target_height, asset_cfg, sensor_cfg)
+    err = torch.abs(base_height - target_height)
+    quad = torch.square(err)
+    # linear continuation matching the quadratic's value (delta^2) and slope (2*delta) at err == delta
+    lin = delta * delta + 2.0 * delta * (err - delta)
+    return torch.where(err <= delta, quad, lin)
+
+
 def lin_vel_z_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize z-axis base linear velocity using L2 squared kernel."""
     # extract the used quantities (to enable type-hinting)

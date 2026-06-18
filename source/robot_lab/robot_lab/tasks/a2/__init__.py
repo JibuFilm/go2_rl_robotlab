@@ -78,6 +78,20 @@ gym.register(
     },
 )
 
+# V9 = V8 dial + the STAIR-INITIATION fix: base_height_l2's kernel reshaped to a transient-tolerant
+# (huber) form so the curriculum-ramped -10 clearance spring stops walling off the first step at the
+# flat->riser scan-straddle. Terrain-agnostic reward shaping; the dial's forward-progress drive then
+# climbs endogenously. Reuses the V5 runner cfg (network unchanged). See env_cfg_v9.py.
+gym.register(
+    id="RobotLab-A2-V9-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v9:A2V9EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V5MoECTSRunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package
