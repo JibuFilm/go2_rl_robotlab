@@ -32,9 +32,10 @@ def _get_base_height(
     Otherwise, it falls back to the world-frame root height, which matches the flat-ground
     interpretation used by Gym-style rewards.
 
-    Invalid ray scans preserve the previous behavior by falling back to
+    Invalid individual rays are ignored. Only an all-invalid scan falls back to
     ``estimated_ground_z = base_z - base_height_target``, which makes
-    ``base_height == base_height_target`` for those environments.
+    ``base_height == base_height_target`` for that environment. This preserves
+    the no-sensor fallback without letting one bad ray erase the penalty.
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     base_z = asset.data.root_pos_w[:, 2]
@@ -44,15 +45,12 @@ def _get_base_height(
 
     sensor: RayCaster = env.scene[sensor_cfg.name]
     ray_hits_z = sensor.data.ray_hits_w[..., 2]
-    invalid = (
-        torch.isnan(ray_hits_z).any(dim=1)
-        | torch.isinf(ray_hits_z).any(dim=1)
-        | (torch.max(torch.abs(ray_hits_z), dim=1).values > 1e6)
-    )
-
-    estimated_ground_z = torch.mean(ray_hits_z, dim=1)
+    valid = torch.isfinite(ray_hits_z) & (torch.abs(ray_hits_z) <= 1e6)
+    valid_count = valid.sum(dim=1)
+    safe_hits_z = torch.where(valid, ray_hits_z, torch.zeros_like(ray_hits_z))
+    estimated_ground_z = safe_hits_z.sum(dim=1) / valid_count.clamp_min(1).to(ray_hits_z.dtype)
     fallback_ground_z = base_z - base_height_target
-    estimated_ground_z = torch.where(invalid, fallback_ground_z, estimated_ground_z)
+    estimated_ground_z = torch.where(valid_count > 0, estimated_ground_z, fallback_ground_z)
     return base_z - estimated_ground_z
 
 

@@ -123,9 +123,20 @@ class MoECTS:
         # Teacher-student environment split
         self.teacher_num_envs = max(int(num_envs * teacher_env_ratio), 1)
         self.student_num_envs = num_envs - self.teacher_num_envs
-        student_env_ratio = 1 - teacher_env_ratio
-        self.teacher_env_idxs = torch.tensor([i for i in range(num_envs) if i % int(1/student_env_ratio) != 0], device=self.device)
-        self.student_env_idxs = torch.tensor([i for i in range(num_envs) if i % int(1/student_env_ratio) == 0], device=self.device)
+        all_env_idxs = torch.arange(num_envs, device=self.device, dtype=torch.long)
+        if self.student_num_envs > 0:
+            # Deterministic pseudo-random split. The old modulo split (`i % 4 == 0` at the
+            # default 75/25 teacher/student ratio) can alias with terrain/env ordering, so the
+            # student can over/under-sample whole terrain bands. A local seeded generator keeps
+            # the split stable without consuming the global training RNG state.
+            gen = torch.Generator(device=self.device)
+            gen.manual_seed(0xC751)
+            perm = torch.randperm(num_envs, device=self.device, generator=gen)
+            self.student_env_idxs = torch.sort(perm[:self.student_num_envs]).values
+            self.teacher_env_idxs = torch.sort(perm[self.student_num_envs:]).values
+        else:
+            self.teacher_env_idxs = all_env_idxs
+            self.student_env_idxs = torch.empty(0, device=self.device, dtype=torch.long)
         assert len(self.teacher_env_idxs) == self.teacher_num_envs, f"{len(self.teacher_env_idxs)=} != {self.teacher_num_envs=}"
         assert len(self.student_env_idxs) == self.student_num_envs, f"{len(self.student_env_idxs)=} != {self.student_num_envs=}"
         

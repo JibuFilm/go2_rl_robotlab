@@ -218,20 +218,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # (go2_env.step), which lives on the ENV and is rebuilt to 0 every process launch.
         # runner.load() restores the policy + logging iteration but NOT this env counter, so
         # without this the curricula RESET to iter 0 on every resume (the bug that pinned V5 at
-        # ±0.5 and would cap a segmented run's speed ramp). Restore the counter from the loaded
-        # checkpoint iter so the curriculum clock continues across segments.
+        # ±0.5 and would cap a segmented run's speed ramp). Restore the counter from the runner's
+        # loaded checkpoint iter so the curriculum clock continues across segments.
         # (num_steps_per_env == command cfg num_steps_per_iter == 24 → counter//24 == iteration.)
         if agent_cfg.resume:
             try:
-                _ckpt = os.path.basename(str(resume_path))            # e.g. model_7000.pt
-                _loaded_iter = int(_ckpt[len("model_"):-len(".pt")])  # 7000
+                _loaded_iter = int(getattr(runner, "current_learning_iteration"))
+                if _loaded_iter <= 0:
+                    raise ValueError(f"loaded checkpoint iter is {_loaded_iter}")
                 env.unwrapped.common_step_counter = _loaded_iter * agent_cfg.num_steps_per_env
                 print(
                     f"[INFO]: resume curriculum continuity — common_step_counter set to "
                     f"{env.unwrapped.common_step_counter} (iter {_loaded_iter} x {agent_cfg.num_steps_per_env})"
                 )
             except Exception as _e:
-                print(f"[WARN]: could not restore common_step_counter from '{resume_path}': {_e!r} "
+                print(f"[WARN]: could not restore common_step_counter from loaded runner state "
+                      f"for '{resume_path}': {_e!r} "
                       f"— curricula will reset to iter 0 (legacy behavior)")
 
     # dump the configuration into log-directory

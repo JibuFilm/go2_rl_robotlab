@@ -274,6 +274,13 @@ class OnPolicyRunnerCTS:
             self.alg.optimizer.load_state_dict(loaded_dict["optimizer_state_dict"])
             # Student encoder optimizer
             self.alg.optimizer_stu_enc.load_state_dict(loaded_dict["optimizer_stu_enc_state_dict"])
+            # Keep the adaptive-KL scheduler's scalar in sync with the restored optimizer.
+            # Adam state loads the actual param-group LR, but MoECTS also keeps
+            # `self.learning_rate`; if that remains at the fresh config value, the next
+            # adaptive update jumps from the wrong base after resume.
+            if self.alg.optimizer.param_groups:
+                lr = self.alg.optimizer.param_groups[0].get("lr", self.alg.learning_rate)
+                self.alg.learning_rate = float(lr.item() if hasattr(lr, "item") else lr)
             # RND optimizer if used
             if self.alg_cfg["rnd_cfg"]:
                 self.alg.rnd_optimizer.load_state_dict(loaded_dict["rnd_optimizer_state_dict"])
