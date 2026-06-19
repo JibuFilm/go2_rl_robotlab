@@ -92,6 +92,19 @@ gym.register(
     },
 )
 
+# V10 = V9 huber plus a terrain-progress dial and goal-aware relaxation of flat-ground style priors.
+# Hard safety stays unchanged; the positive speed goal reads sensed terrain tangent, while style
+# penalties loosen only when command+relief say flat form is the wrong prior. See env_cfg_v10.py.
+gym.register(
+    id="RobotLab-A2-V10-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v10:A2V10EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V5MoECTSRunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package

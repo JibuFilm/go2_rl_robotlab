@@ -54,6 +54,116 @@ def _get_base_height(
     return base_z - estimated_ground_z
 
 
+def _height_scan_relief(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg | None = None,
+) -> torch.Tensor:
+    """Height variation under the base from a ray scanner.
+
+    This is a terrain cue, not a terrain label: flat ground returns ~0, slopes/stairs/edges return
+    positive relief. Invalid rays are ignored; all-invalid scans return zero so they do not relax
+    posture constraints by accident.
+    """
+    if sensor_cfg is None:
+        return torch.zeros(env.num_envs, device=env.device)
+    sensor: RayCaster = env.scene[sensor_cfg.name]
+    ray_hits_z = sensor.data.ray_hits_w[..., 2]
+    valid = torch.isfinite(ray_hits_z) & (torch.abs(ray_hits_z) <= 1e6)
+    any_valid = valid.any(dim=1)
+    finfo = torch.finfo(ray_hits_z.dtype)
+    z_min = torch.min(torch.where(valid, ray_hits_z, torch.full_like(ray_hits_z, finfo.max)), dim=1).values
+    z_max = torch.max(torch.where(valid, ray_hits_z, torch.full_like(ray_hits_z, finfo.min)), dim=1).values
+    relief = torch.where(any_valid, z_max - z_min, torch.zeros_like(z_max))
+    return relief
+
+
+def _goal_relax_scale(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg | None = None,
+    command_threshold: float = 0.1,
+    command_full: float = 0.8,
+    relief_threshold: float = 0.03,
+    relief_full: float = 0.12,
+    max_relax: float = 0.75,
+) -> torch.Tensor:
+    """Scale for posture/style penalties that should loosen when the goal conflicts with flat form.
+
+    The MoE policy needs room to route rough-terrain commands into different gait regimes. This
+    scale keeps flat/idle penalties unchanged, then reduces them when the command asks for motion
+    and the height scan shows terrain relief. Safety terms should not use this helper.
+    """
+    cmd = env.command_manager.get_command(command_name)[:, :2]
+    cmd_norm = torch.norm(cmd, dim=1)
+    cmd_gate = torch.clamp(
+        (cmd_norm - command_threshold) / max(command_full - command_threshold, 1e-6),
+        min=0.0,
+        max=1.0,
+    )
+    relief = _height_scan_relief(env, sensor_cfg)
+    relief_gate = torch.clamp(
+        (relief - relief_threshold) / max(relief_full - relief_threshold, 1e-6),
+        min=0.0,
+        max=1.0,
+    )
+    relax = torch.clamp(torch.as_tensor(max_relax, device=env.device, dtype=cmd_norm.dtype), 0.0, 0.95)
+    return 1.0 - relax * cmd_gate * relief_gate
+
+
+def _terrain_slope_along_command(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg | None = None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    eps: float = 0.1,
+    min_span: float = 0.05,
+    max_slope: float = 1.0,
+) -> torch.Tensor:
+    """Estimate local terrain slope in the commanded direction from scanner hits.
+
+    The result is not a terrain label. It is a local geometric cue from the same height scanner the
+    policy observes: positive when the commanded direction points uphill, negative downhill, and zero
+    on flat/invalid scans. All-invalid or one-sided scans deliberately return zero so missing sensor
+    data cannot create free vertical reward.
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)[:, :2]
+    cmd_norm = torch.norm(cmd, dim=1)
+
+    if sensor_cfg is None:
+        return torch.zeros_like(cmd_norm)
+
+    sensor: RayCaster = env.scene[sensor_cfg.name]
+    ray_hits_w = sensor.data.ray_hits_w
+    ray_hits_z = ray_hits_w[..., 2]
+    valid = torch.isfinite(ray_hits_w).all(dim=-1) & (torch.abs(ray_hits_z) <= 1e6)
+
+    cmd_dir_b = cmd / cmd_norm.clamp_min(eps).unsqueeze(1)
+    cmd_dir_b3 = torch.cat((cmd_dir_b, torch.zeros_like(cmd_norm).unsqueeze(1)), dim=1)
+    cmd_dir_w = math_utils.quat_apply(yaw_quat(asset.data.root_quat_w), cmd_dir_b3)[:, :2]
+
+    rel_xy = ray_hits_w[..., :2] - asset.data.root_pos_w[:, None, :2]
+    proj = torch.sum(rel_xy * cmd_dir_w[:, None, :], dim=-1)
+    safe_proj = torch.where(valid, proj, torch.zeros_like(proj))
+    safe_hits_z = torch.where(valid, ray_hits_z, torch.zeros_like(ray_hits_z))
+
+    front_w = torch.clamp(safe_proj, min=0.0)
+    rear_w = torch.clamp(-safe_proj, min=0.0)
+    front_sum = front_w.sum(dim=1)
+    rear_sum = rear_w.sum(dim=1)
+
+    front_z = (safe_hits_z * front_w).sum(dim=1) / front_sum.clamp_min(1e-6)
+    rear_z = (safe_hits_z * rear_w).sum(dim=1) / rear_sum.clamp_min(1e-6)
+    front_dist = (safe_proj * front_w).sum(dim=1) / front_sum.clamp_min(1e-6)
+    rear_dist = ((-safe_proj) * rear_w).sum(dim=1) / rear_sum.clamp_min(1e-6)
+    span = front_dist + rear_dist
+
+    has_two_sides = (cmd_norm > eps) & (front_sum > 1e-6) & (rear_sum > 1e-6) & (span > min_span)
+    slope = (front_z - rear_z) / span.clamp_min(min_span)
+    slope = torch.where(has_two_sides, slope, torch.zeros_like(slope))
+    return torch.clamp(slope, min=-max_slope, max=max_slope)
+
+
 def track_lin_vel_xy_exp(
     env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -542,12 +652,69 @@ def base_height_huber(
     return torch.where(err <= delta, quad, lin)
 
 
+def base_height_huber_goal_relaxed(
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    command_name: str,
+    delta: float = 0.06,
+    max_relax: float = 0.75,
+    command_threshold: float = 0.1,
+    command_full: float = 0.8,
+    relief_threshold: float = 0.03,
+    relief_full: float = 0.12,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg | None = None,
+) -> torch.Tensor:
+    """Huber base-height penalty, relaxed when a movement goal meets non-flat terrain.
+
+    This keeps the flat-ground body-height prior intact, but avoids turning it into a global law
+    that vetoes stair/slope initiation. Illegal contacts and joint limits remain hard elsewhere.
+    """
+    penalty = base_height_huber(env, target_height, delta, asset_cfg, sensor_cfg)
+    scale = _goal_relax_scale(
+        env,
+        command_name,
+        sensor_cfg,
+        command_threshold=command_threshold,
+        command_full=command_full,
+        relief_threshold=relief_threshold,
+        relief_full=relief_full,
+        max_relax=max_relax,
+    )
+    return penalty * scale
+
+
 def lin_vel_z_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize z-axis base linear velocity using L2 squared kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     reward = torch.square(asset.data.root_lin_vel_b[:, 2])
     return reward
+
+
+def lin_vel_z_l2_goal_relaxed(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg | None = None,
+    max_relax: float = 0.8,
+    command_threshold: float = 0.1,
+    command_full: float = 0.8,
+    relief_threshold: float = 0.03,
+    relief_full: float = 0.12,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Vertical-velocity penalty that yields during commanded rough-terrain traversal."""
+    scale = _goal_relax_scale(
+        env,
+        command_name,
+        sensor_cfg,
+        command_threshold=command_threshold,
+        command_full=command_full,
+        relief_threshold=relief_threshold,
+        relief_full=relief_full,
+        max_relax=max_relax,
+    )
+    return lin_vel_z_l2(env, asset_cfg) * scale
 
 
 def ang_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -579,6 +746,31 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     asset: RigidObject = env.scene[asset_cfg.name]
     reward = torch.sum(torch.square(asset.data.projected_gravity_b[:, :2]), dim=1)
     return reward
+
+
+def flat_orientation_l2_goal_relaxed(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg | None = None,
+    max_relax: float = 0.8,
+    command_threshold: float = 0.1,
+    command_full: float = 0.8,
+    relief_threshold: float = 0.03,
+    relief_full: float = 0.12,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Flat-orientation prior that stays strong on flat/idle and loosens on commanded relief."""
+    scale = _goal_relax_scale(
+        env,
+        command_name,
+        sensor_cfg,
+        command_threshold=command_threshold,
+        command_full=command_full,
+        relief_threshold=relief_threshold,
+        relief_full=relief_full,
+        max_relax=max_relax,
+    )
+    return flat_orientation_l2(env, asset_cfg) * scale
 
 
 def hip_pos_penalty_l1(
@@ -636,6 +828,37 @@ def feet_regulation(
     reward = (feet_xy_vel_w.pow(2).sum(dim=-1) * torch.exp(-feet_height / (0.025 * base_height_target))).sum(dim=-1)
 
     return reward
+
+
+def feet_regulation_goal_relaxed(
+    env: ManagerBasedRLEnv,
+    base_height_target: float,
+    command_name: str,
+    max_relax: float = 0.5,
+    command_threshold: float = 0.1,
+    command_full: float = 0.8,
+    relief_threshold: float = 0.03,
+    relief_full: float = 0.12,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg | None = None,
+) -> torch.Tensor:
+    """Foot scuffing regularizer that loosens at commanded terrain discontinuities.
+
+    It remains active as a gait-quality prior, but it stops being a hidden veto on quick foot
+    placement when the robot is actually climbing over relief.
+    """
+    penalty = feet_regulation(env, base_height_target, asset_cfg, sensor_cfg)
+    scale = _goal_relax_scale(
+        env,
+        command_name,
+        sensor_cfg,
+        command_threshold=command_threshold,
+        command_full=command_full,
+        relief_threshold=relief_threshold,
+        relief_full=relief_full,
+        max_relax=max_relax,
+    )
+    return penalty * scale
 
 
 # ---------------------------------------------------------------------------
@@ -760,6 +983,54 @@ def track_lin_vel_dial(
     v_along = torch.sum(asset.data.root_lin_vel_b[:, :2] * direction, dim=1)
     # forward progress along the command, capped at the commanded magnitude; never negative
     reward = torch.clamp(v_along, min=0.0)
+    reward = torch.minimum(reward, cmd_norm)
+    return reward * moving
+
+
+def track_lin_vel_terrain_dial(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg | None = None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    eps: float = 0.1,
+    min_span: float = 0.05,
+    max_slope: float = 1.0,
+) -> torch.Tensor:
+    """Self-finding speed dial measured along the sensed terrain, not just the horizontal plane.
+
+    `track_lin_vel_dial` reads the command as cap+direction, but it only credits planar velocity.
+    That makes the first stair step a blind spot: the useful motion is partly vertical, so a cautious
+    lift can receive no positive progress. This variant estimates the terrain tangent from local
+    height-scanner relief in the commanded direction and rewards velocity along that tangent.
+
+    Flat terrain is byte-for-byte the same objective in effect: slope is zero, so only planar progress
+    counts. Near a rising edge, upward body velocity contributes to commanded progress; near a descent,
+    controlled downward velocity can contribute. The reward stays clamped to [0, |cmd|], so vertical
+    bouncing cannot exceed the same dial cap that governs flat running.
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)[:, :2]
+    cmd_norm = torch.norm(cmd, dim=1)
+    moving = (cmd_norm > eps).float()
+
+    cmd_dir_b = cmd / cmd_norm.clamp_min(eps).unsqueeze(1)
+    cmd_dir_b3 = torch.cat((cmd_dir_b, torch.zeros_like(cmd_norm).unsqueeze(1)), dim=1)
+    cmd_dir_w = math_utils.quat_apply(yaw_quat(asset.data.root_quat_w), cmd_dir_b3)[:, :2]
+    slope = _terrain_slope_along_command(
+        env,
+        command_name,
+        sensor_cfg=sensor_cfg,
+        asset_cfg=asset_cfg,
+        eps=eps,
+        min_span=min_span,
+        max_slope=max_slope,
+    )
+
+    v_planar_along = torch.sum(asset.data.root_lin_vel_w[:, :2] * cmd_dir_w, dim=1)
+    tangent_norm = torch.sqrt(1.0 + torch.square(slope))
+    v_along_terrain = (v_planar_along + asset.data.root_lin_vel_w[:, 2] * slope) / tangent_norm
+
+    reward = torch.clamp(v_along_terrain, min=0.0)
     reward = torch.minimum(reward, cmd_norm)
     return reward * moving
 
