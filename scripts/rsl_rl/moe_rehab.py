@@ -131,11 +131,13 @@ def main():
                                    live_thresh=args.live_thresh,
                                    gate_head_std=args.gate_head_std,
                                    seed_noise=args.seed_noise)
-    # (4) strip optimizer state so the resumed run starts Adam fresh on the surgically-changed params
-    stripped = [k for k in list(ck.keys()) if "optim" in k.lower()]
-    for k in stripped:
-        ck[k] = {}
-    print(f"[rehab] stripped optimizer state: {stripped}")
+    # (4) KEEP optimizer state (do NOT strip). The reset params (gate head + dead experts) were
+    # frozen/dead during training → their Adam moments are already ~0, so loading them == effectively
+    # fresh for exactly those params, while the live params (actor/critic/experts 1&7) keep their warm
+    # momentum. Stripping to {} would also break the runner's load() (it calls load_state_dict
+    # unconditionally on resume, which rejects an empty dict).
+    optim_keys = [k for k in ck.keys() if "optim" in k.lower()]
+    print(f"[rehab] kept optimizer state {optim_keys} (reset params already ~0 momentum -> effectively fresh)")
     torch.save(ck, args.out)
     print(f"[rehab] wrote {args.out}")
 
