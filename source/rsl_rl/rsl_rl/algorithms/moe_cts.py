@@ -38,6 +38,7 @@ class MoECTS:
         value_loss_coef: float = 1.0,
         entropy_coef: float = 0.01,
         load_balance_coef: float = 0.01,
+        z_loss_coef: float = 1e-3,
         learning_rate: float = 0.001,
         student_encoder_learning_rate: float = 0.001,
         max_grad_norm: float = 1.0,
@@ -111,6 +112,7 @@ class MoECTS:
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
         self.load_balance_coef = load_balance_coef
+        self.z_loss_coef = z_loss_coef
         self.gamma = gamma
         self.lam = lam
         self.max_grad_norm = max_grad_norm
@@ -241,6 +243,11 @@ class MoECTS:
         mean_entropy = 0
         mean_latent_loss = 0
         mean_load_balance_loss = 0
+        mean_z_loss = 0
+        mean_gate_entropy = 0
+        mean_gate_logit_absmax = 0
+        mean_gate_usage_min = 0
+        mean_gate_usage_max = 0
         # RND loss
         mean_rnd_loss = 0 if self.rnd else None
 
@@ -415,15 +422,30 @@ class MoECTS:
             target_usage = torch.full_like(mean_usage, 1.0 / gating_weights.shape[1])
             load_balance_loss = torch.mean((mean_usage - target_usage).pow(2))
             # load_balance_loss = torch.sum(mean_usage.pow(2)) * gating_weights.shape[1]  # Switch Transformer style
-            student_loss = latent_loss + self.load_balance_coef * load_balance_loss
+            # z-loss: penalize raw gate-LOGIT magnitude directly — the anti-saturation guard the
+            # post-softmax load-balance cannot provide (its gradient dies through a saturated softmax).
+            # The encoder feeds obs straight into the MoE, so gating_network[0] reproduces the exact
+            # routing logits (gating_network[1] is the Softmax).
+            gate_logits = self.policy.student_moe_encoder.moe.gating_network[0](obs_a_batch[teacher_samples:])
+            z_loss = (torch.logsumexp(gate_logits, dim=-1) ** 2).mean()
+            student_loss = latent_loss + self.load_balance_coef * load_balance_loss + self.z_loss_coef * z_loss
             
             self.optimizer_stu_enc.zero_grad()
             student_loss.backward()
             nn.utils.clip_grad_norm_(self.policy.student_moe_encoder.parameters(), self.max_grad_norm)
             self.optimizer_stu_enc.step()
 
+            # router-health metrics (logged per-iter so a re-collapse shows up immediately, not
+            # only at checkpoint diff time — which is how the original collapse went unseen)
+            with torch.no_grad():
+                gate_entropy = -(gating_weights.clamp_min(1e-9).log() * gating_weights).sum(-1).mean()
             mean_latent_loss += latent_loss.item()
             mean_load_balance_loss += load_balance_loss.item()
+            mean_z_loss += z_loss.item()
+            mean_gate_entropy += gate_entropy.item()
+            mean_gate_logit_absmax += gate_logits.abs().max().item()
+            mean_gate_usage_min += mean_usage.min().item()
+            mean_gate_usage_max += mean_usage.max().item()
 
         # Divide the losses by the number of updates
         num_updates = self.num_learning_epochs * self.num_mini_batches
@@ -432,6 +454,11 @@ class MoECTS:
         mean_entropy /= num_updates
         mean_latent_loss /= num_updates
         mean_load_balance_loss /= num_updates
+        mean_z_loss /= num_updates
+        mean_gate_entropy /= num_updates
+        mean_gate_logit_absmax /= num_updates
+        mean_gate_usage_min /= num_updates
+        mean_gate_usage_max /= num_updates
         if mean_rnd_loss is not None:
             mean_rnd_loss /= num_updates
 
@@ -444,7 +471,12 @@ class MoECTS:
             "surrogate": mean_surrogate_loss,
             "entropy": mean_entropy,
             "mean_latent_loss": mean_latent_loss,
-            "mean_load_balance_loss": mean_load_balance_loss
+            "mean_load_balance_loss": mean_load_balance_loss,
+            "mean_z_loss": mean_z_loss,
+            "gate_entropy": mean_gate_entropy,
+            "gate_logit_absmax": mean_gate_logit_absmax,
+            "gate_usage_min": mean_gate_usage_min,
+            "gate_usage_max": mean_gate_usage_max,
         }
         if self.rnd:
             loss_dict["rnd"] = mean_rnd_loss

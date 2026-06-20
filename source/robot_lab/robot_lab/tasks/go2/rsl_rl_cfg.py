@@ -51,7 +51,8 @@ class RslRlMoeCtsActorCriticCfg(RslRlPpoActorCriticCfg):
 class RslRlMoeCtsAlgorithmCfg(RslRlPpoAlgorithmCfg):
     class_name = "MoECTS"
     value_loss_coef = 1.0
-    load_balance_coef = 0.01  # coefficient for load balance loss
+    load_balance_coef = 0.02  # bumped from 0.01 — post-softmax balancer, weak alone
+    z_loss_coef = 1e-3  # anti-saturation: penalize raw gate-logit magnitude (ST-MoE z-loss)
     use_clipped_value_loss = True
     clip_param = 0.2
     entropy_coef = 0.01
