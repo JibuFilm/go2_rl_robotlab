@@ -77,6 +77,42 @@ def _height_scan_relief(
     return relief
 
 
+def _recovery_gate(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    contact_sensor_cfg: SceneEntityCfg | None = None,
+    base_sensor_cfg: SceneEntityCfg | None = None,
+    upright_lo: float = 0.55,
+    upright_hi: float = 0.90,
+    base_target: float = 0.40,
+    base_drop: float = 0.12,
+    contact_thresh: float = 1.0,
+) -> torch.Tensor:
+    """[0,1] gate that rises when the robot is in a RECOVERABLE bad state (V12 / bravery arm).
+
+    Bravery diagnosis A4: style/posture penalties must not slam back during a mid-stumble save,
+    even when the height scan does not read terrain relief. This gate keys on the robot's OWN state:
+    tilt (low uprightness) OR low base height OR base-in-contact. It is used to relax (not remove)
+    style penalties so the policy can flail back under itself. Hard safety terms never use it.
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    # tilt: uprightness u = -projected_gravity_z (1 = upright, 0 = on its side); gate rises as u drops.
+    u = (-asset.data.projected_gravity_b[:, 2]).clamp(-1.0, 1.0)
+    gate = torch.clamp((upright_hi - u) / max(upright_hi - upright_lo, 1e-6), 0.0, 1.0)
+    # low base height relative to terrain (reuses the validity-aware base-height helper).
+    # NOTE _get_base_height signature is (env, base_height_target: float, asset_cfg, sensor_cfg).
+    if base_sensor_cfg is not None:
+        h = _get_base_height(env, base_target, asset_cfg, base_sensor_cfg)
+        low_gate = torch.clamp((base_target - h) / max(base_drop, 1e-6), 0.0, 1.0)
+        gate = torch.maximum(gate, low_gate)
+    # base-in-contact is intentionally NOT read from the contact sensor here: a SceneEntityCfg
+    # nested inside a dict param is not reliably resolved by the manager (body_ids would default to
+    # ALL bodies, firing on every footstep). Base contact is already captured by the low-base gate
+    # above (a base resting on the ground has height ~0 << target). contact_sensor_cfg is accepted
+    # for forward-compat but unused; tilt + low-base are the robust, resolution-free recovery signals.
+    return gate.clamp(0.0, 1.0)
+
+
 def _goal_relax_scale(
     env: ManagerBasedRLEnv,
     command_name: str,
@@ -86,12 +122,19 @@ def _goal_relax_scale(
     relief_threshold: float = 0.03,
     relief_full: float = 0.12,
     max_relax: float = 0.75,
+    recovery: bool = False,
+    recovery_cfg: dict | None = None,
 ) -> torch.Tensor:
     """Scale for posture/style penalties that should loosen when the goal conflicts with flat form.
 
     The MoE policy needs room to route rough-terrain commands into different gait regimes. This
     scale keeps flat/idle penalties unchanged, then reduces them when the command asks for motion
     and the height scan shows terrain relief. Safety terms should not use this helper.
+
+    V12 (bravery A4): when ``recovery=True`` the relaxation ALSO triggers on the robot's own
+    recovery-state (tilt / low base / base contact) via ``_recovery_gate``, so the style penalties
+    yield during a save even if the terrain sensor does not read relief. The two drivers are OR'd:
+    ``relax_drive = max(cmd_gate*relief_gate, recovery_gate)``.
     """
     cmd = env.command_manager.get_command(command_name)[:, :2]
     cmd_norm = torch.norm(cmd, dim=1)
@@ -106,8 +149,11 @@ def _goal_relax_scale(
         min=0.0,
         max=1.0,
     )
+    relax_drive = cmd_gate * relief_gate
+    if recovery:
+        relax_drive = torch.maximum(relax_drive, _recovery_gate(env, **(recovery_cfg or {})))
     relax = torch.clamp(torch.as_tensor(max_relax, device=env.device, dtype=cmd_norm.dtype), 0.0, 0.95)
-    return 1.0 - relax * cmd_gate * relief_gate
+    return 1.0 - relax * relax_drive
 
 
 def _terrain_slope_along_command(
@@ -664,6 +710,8 @@ def base_height_huber_goal_relaxed(
     relief_full: float = 0.12,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     sensor_cfg: SceneEntityCfg | None = None,
+    recovery: bool = False,
+    recovery_cfg: dict | None = None,
 ) -> torch.Tensor:
     """Huber base-height penalty, relaxed when a movement goal meets non-flat terrain.
 
@@ -680,6 +728,8 @@ def base_height_huber_goal_relaxed(
         relief_threshold=relief_threshold,
         relief_full=relief_full,
         max_relax=max_relax,
+        recovery=recovery,
+        recovery_cfg=recovery_cfg,
     )
     return penalty * scale
 
@@ -702,6 +752,8 @@ def lin_vel_z_l2_goal_relaxed(
     relief_threshold: float = 0.03,
     relief_full: float = 0.12,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    recovery: bool = False,
+    recovery_cfg: dict | None = None,
 ) -> torch.Tensor:
     """Vertical-velocity penalty that yields during commanded rough-terrain traversal."""
     scale = _goal_relax_scale(
@@ -713,6 +765,8 @@ def lin_vel_z_l2_goal_relaxed(
         relief_threshold=relief_threshold,
         relief_full=relief_full,
         max_relax=max_relax,
+        recovery=recovery,
+        recovery_cfg=recovery_cfg,
     )
     return lin_vel_z_l2(env, asset_cfg) * scale
 
@@ -758,6 +812,8 @@ def flat_orientation_l2_goal_relaxed(
     relief_threshold: float = 0.03,
     relief_full: float = 0.12,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    recovery: bool = False,
+    recovery_cfg: dict | None = None,
 ) -> torch.Tensor:
     """Flat-orientation prior that stays strong on flat/idle and loosens on commanded relief."""
     scale = _goal_relax_scale(
@@ -769,6 +825,8 @@ def flat_orientation_l2_goal_relaxed(
         relief_threshold=relief_threshold,
         relief_full=relief_full,
         max_relax=max_relax,
+        recovery=recovery,
+        recovery_cfg=recovery_cfg,
     )
     return flat_orientation_l2(env, asset_cfg) * scale
 
@@ -841,6 +899,8 @@ def feet_regulation_goal_relaxed(
     relief_full: float = 0.12,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     sensor_cfg: SceneEntityCfg | None = None,
+    recovery: bool = False,
+    recovery_cfg: dict | None = None,
 ) -> torch.Tensor:
     """Foot scuffing regularizer that loosens at commanded terrain discontinuities.
 
@@ -857,6 +917,8 @@ def feet_regulation_goal_relaxed(
         relief_threshold=relief_threshold,
         relief_full=relief_full,
         max_relax=max_relax,
+        recovery=recovery,
+        recovery_cfg=recovery_cfg,
     )
     return penalty * scale
 
@@ -995,6 +1057,7 @@ def track_lin_vel_terrain_dial(
     eps: float = 0.1,
     min_span: float = 0.05,
     max_slope: float = 1.0,
+    backtrack_cap: float = 0.0,
 ) -> torch.Tensor:
     """Self-finding speed dial measured along the sensed terrain, not just the horizontal plane.
 
@@ -1007,6 +1070,11 @@ def track_lin_vel_terrain_dial(
     counts. Near a rising edge, upward body velocity contributes to commanded progress; near a descent,
     controlled downward velocity can contribute. The reward stays clamped to [0, |cmd|], so vertical
     bouncing cannot exceed the same dial cap that governs flat running.
+
+    ``backtrack_cap`` (V12 / bravery A1): the lower clamp on along-terrain velocity. The default 0.0
+    keeps the original behavior (no credit and no charge for retreating). A positive value lets the
+    progress go mildly NEGATIVE down to ``-backtrack_cap``, so commanded-direction backtracking is
+    penalized instead of being free — discouraging the "retreat from a hard spot" failure mode.
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     cmd = env.command_manager.get_command(command_name)[:, :2]
@@ -1030,9 +1098,44 @@ def track_lin_vel_terrain_dial(
     tangent_norm = torch.sqrt(1.0 + torch.square(slope))
     v_along_terrain = (v_planar_along + asset.data.root_lin_vel_w[:, 2] * slope) / tangent_norm
 
-    reward = torch.clamp(v_along_terrain, min=0.0)
+    reward = torch.clamp(v_along_terrain, min=-backtrack_cap)
     reward = torch.minimum(reward, cmd_norm)
     return reward * moving
+
+
+def recover_and_progress(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg | None = None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    recovery_cfg: dict | None = None,
+    eps: float = 0.1,
+    min_span: float = 0.05,
+    max_slope: float = 1.0,
+) -> torch.Tensor:
+    """Reward commanded forward progress made WHILE in a recovery state — the 'save' bonus (V12 / A3).
+
+    Bravery diagnosis A3: the policy learns to retreat from hard spots because the only thing paid
+    during a stumble is the risk; nothing rewards fighting back to the goal mid-save. This term pays
+    the SAME bounded forward progress as the terrain dial, but ONLY while the recovery gate is high
+    (tilted / low base / base in contact). So it credits the robot for driving toward the command
+    through a stumble — not for being in a bad state.
+
+    It is not farmable: ``track_lin_vel_terrain_dial`` already returns progress clamped to
+    [0, |cmd|] and multiplied by the moving mask, so the reward is bounded by the dial cap and is paid
+    only for ACTUAL commanded forward progress; the recovery gate just scopes it to the save window.
+    """
+    progress = track_lin_vel_terrain_dial(
+        env,
+        command_name,
+        sensor_cfg=sensor_cfg,
+        asset_cfg=asset_cfg,
+        eps=eps,
+        min_span=min_span,
+        max_slope=max_slope,
+    )
+    gate = _recovery_gate(env, **(recovery_cfg or {}))
+    return progress * gate
 
 
 def lin_vel_lateral_l2(

@@ -487,11 +487,17 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    illegal_contact = DoneTerm(
-        func=mdp.illegal_contact,
+    # V12 (bravery A2): a brief base scrape is now SURVIVABLE — the episode ends only on a true
+    # fall/flip, not on the first base contact. `mdp.bad_orientation` (isaaclab mdp, re-exported by
+    # go2.mdp's `from isaaclab.envs.mdp import *`) terminates when the base tilt exceeds limit_angle.
+    # limit_angle=1.4 rad (~80 deg) lets the robot stumble/lean far and still try to recover; past
+    # that it has effectively gone over and the episode resets. Base-DRAGGING is discouraged instead
+    # by a per-step base-contact PENALTY wired in the V12 cfg (not a hard termination here).
+    base_fall = DoneTerm(
+        func=mdp.bad_orientation,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=BASE_LINK_NAME),  # §3: base_link
-            "threshold": 1.0
+            "asset_cfg": SceneEntityCfg("robot", body_names=BASE_LINK_NAME),  # §3: base_link
+            "limit_angle": 1.4,
         },
     )
 

@@ -34,3 +34,24 @@ class RslRlMoeCtsV5ActorCriticCfg(RslRlMoeCtsActorCriticCfg):
 class A2V5MoECTSRunnerCfg(A2MoECTSRunnerCfg):
     experiment_name = "a2_v5_moe_cts"
     policy = RslRlMoeCtsV5ActorCriticCfg()
+
+
+@configclass
+class RslRlMoeCtsV12AlgorithmCfg(RslRlMoeCtsAlgorithmCfg):
+    """V12 gate-selection tuning (bravery arm). The go2 defaults push the gate toward UNIFORM
+    routing (z_loss 1e-3 anti-saturation + load_balance 0.02 post-softmax balancer); now that the
+    experts have differentiated, that averaging is what we want to RELAX so a specialist (e.g. a
+    save/recovery expert) can actually be SELECTED. Lower both coefficients; everything else inherited
+    byte-for-byte. This is the gate-side lever V12 DOES pull — B1/B2 (logit temperature, entropy
+    floor) are consciously omitted because they re-force uniformity (see env_cfg_v12.py)."""
+
+    z_loss_coef = 3e-4  # lowered from 1e-3 — let gate logits differentiate
+    load_balance_coef = 0.005  # lowered from 0.02 — let experts be selected, not averaged
+
+
+@configclass
+class A2V12MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
+    """V12 runner = V5 perceptive-student policy + the gate-selection algorithm cfg."""
+
+    experiment_name = "a2_v12_moe_cts"
+    algorithm = RslRlMoeCtsV12AlgorithmCfg()
