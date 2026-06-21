@@ -55,3 +55,23 @@ class A2V12MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
 
     experiment_name = "a2_v12_moe_cts"
     algorithm = RslRlMoeCtsV12AlgorithmCfg()
+
+
+@configclass
+class RslRlMoeCtsV13AlgorithmCfg(RslRlMoeCtsV12AlgorithmCfg):
+    """V13 = V12's gate-selection tuning, one step further. V12 dropped load_balance 0.02 -> 0.005,
+    but through ~92% of V12 the gate entropy stayed pinned at max (ln 8 = 2.079) — selection never
+    emerged at 0.005. V13 takes the documented next step: load_balance 0.005 -> 0.002. z_loss stays
+    3e-4 (the conditional next lever was always load_balance, NOT z_loss). CONDITIONAL: if V12's FINAL
+    checkpoint shows entropy dropping below max, revert to 0.005 before launch."""
+
+    load_balance_coef = 0.002  # 0.005 (V12) -> 0.002 — selection didn't emerge at 0.005
+
+
+@configclass
+class A2V13MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
+    """V13 runner = V5 perceptive-student policy + the V13 (deeper) gate-selection algorithm cfg.
+    Env-side stand-still posture fix rides on A2V13EnvCfg."""
+
+    experiment_name = "a2_v13_moe_cts"
+    algorithm = RslRlMoeCtsV13AlgorithmCfg()

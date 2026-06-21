@@ -119,6 +119,19 @@ gym.register(
     },
 )
 
+# V13 = V12 bravery arm + a STAND-STILL POSTURE fix (P1 kill hip splay, P2 lift the leg-tuck/sag at
+# rest — both command-gated so they can't fight the climb) + the deeper gate-selection lever
+# (load_balance 0.005 -> 0.002, since selection never emerged at 0.005 through V12). See env_cfg_v13.py.
+gym.register(
+    id="RobotLab-A2-V13-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v13:A2V13EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V13MoECTSRunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package
