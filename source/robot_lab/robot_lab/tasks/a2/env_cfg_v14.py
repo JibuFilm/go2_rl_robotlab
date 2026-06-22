@@ -11,10 +11,11 @@ foundation). The recipe is kept; only the weights restart.
 
 CORRECTED AT THE SOURCE (baked into the base, not here — so a short run can't miss an override):
   * STANCE — unitree.py A2_CFG_UNITREE: thigh 0.9/calf -1.8 (over-folded, ~0.44 m physical, 62% reach)
-    -> thigh 0.8/calf -1.05 (URDF FK: base_link ~0.474 m -> physical ~0.566 m == the real A2's ~0.57 m
-    operating height; ~81% reach). init z 0.45 -> 0.55.
-  * BASE_HEIGHT_TARGET (env_cfg.py): 0.40 -> 0.47 (matches the corrected stance; was inconsistent with
-    the -1.8 calf, which only reaches ~0.35 m). The two MUST move together (base_height_l2 -> -10).
+    -> thigh 0.8/calf -1.05 (URDF FK foot-center drop ~0.4685 m + foot sphere r=0.032 m ->
+    contact-settled base_link ~0.50 m, physical top ~0.59 m). init z 0.45 -> 0.55.
+  * BASE_HEIGHT_TARGET (env_cfg.py): 0.40 -> 0.47 — deliberately ~3 cm BELOW the ~0.50 natural
+    contact-settled stance, so the policy holds a compliant slightly-bent stand rather than being
+    driven to full kinematic extension (user decision 2026-06-22). base_height_l2 ramps to -10.
   * base-mass DR (env_cfg.py): ±1.0 kg (go2-absolute, ±2.4% on the A2) -> ±2.6 kg (fraction-matched).
 
 APPLIED HERE (the clean-slate command/terrain/reward corrections):
@@ -33,8 +34,10 @@ APPLIED HERE (the clean-slate command/terrain/reward corrections):
      structurally can't see). track_lin_vel_xy_exp 0.0 -> 1.0; track_lin_vel_dial 0.35 -> 0.1 (kept
      small — note in code: the dial scales with commanded speed, so it's a general progress nudge, not
      a climb-ONLY term; a clean climb-isolated bonus is a future refinement).
-  2. FRESH-WALKER command curriculum. V8's schedule (init ±2.0; milestones 15k/28k/42k) is warm-start-
-     coupled. A fresh walker starts at ±0.5 and ramps to the A2's ±5.0 peak over ~35k.
+  2. COMPETENCE-GATED fresh-walker command curriculum. V8's schedule (init ±2.0; milestones
+     15k/28k/42k) is warm-start-coupled. A fresh walker starts at ±0.5; each later range has an
+     earliest iteration but opens only after the live command term sees enough speed tracking with a
+     low fall rate, one range at a time.
   3. ENERGY weights restored to FULL Gate-T candidates. V12 HALVED joint_torques_l2/joint_power as a
      bravery band-aid on top of unvalidated candidates; the clean slate uses the full translated values
      (re-anchor via the Gate-T step-2 a2 smoke is still owed — flagged, not silently inherited halved).
@@ -99,6 +102,8 @@ class A2V14EnvCfg(A2V13EnvCfg):
         # small additive terrain-tangent climb-credit bonus (its one merit the planar tracker lacks). The
         # V8 swap was a misdiagnosis — the reckless-overspeed was OUR uniform ±5 caps, now fixed in (1).
         self.rewards.track_lin_vel_xy_exp.weight = 1.0   # was 0.0 (V8 disabled); v_max 5.0 baked in base
+        self.rewards.track_lin_vel_xy_exp.params["terrain_cap_aware"] = True
+        self.rewards.track_ang_vel_z_exp.params["terrain_cap_aware"] = True
         # CAVEAT (honest): the dial's value is a clamped velocity (~[0,|cmd|]), so it scales with
         # commanded SPEED while the tracker is bounded [0,1]. A fixed weight thus makes it a general
         # PROGRESS nudge (largest on flat-fast), not a clean climb-ONLY bonus — its terrain-tangent
@@ -107,15 +112,29 @@ class A2V14EnvCfg(A2V13EnvCfg):
         # climb-isolated term (credit only the v_z·slope component) is a future refinement if needed.
         self.rewards.track_lin_vel_dial.weight = 0.1     # was 0.35 (primary) -> small progress/climb bonus
 
-        # --- (2) fresh-walker command curriculum: start ±0.5, ramp to the A2's ±5.0 peak over ~35k.
+        # --- (2) fresh-walker command curriculum: earliest-iter stages, but gated by live competence
+        # (achieved command speed + low fall rate). This keeps the schedule progressive without treating
+        # "number of optimizer steps elapsed" as proof the gait is ready.
         cmd.ranges.lin_vel_x = [-0.5, 0.5]
         cmd.ranges.lin_vel_y = [-0.5, 0.5]
         cmd.ranges.ang_vel_yaw = [-1.0, 1.0]
+        cmd.command_range_curriculum_mode = "competence"
+        cmd.command_curriculum_min_speed_ratio = 0.60
+        cmd.command_curriculum_max_fall_rate = 0.12
+        cmd.command_curriculum_min_terrain_level = 0.0
+        cmd.command_curriculum_ema_alpha = 0.01
+        cmd.command_curriculum_min_samples = 400
+        cmd.command_curriculum_warmup_iters = 1000
+        cmd.command_curriculum_log_interval = 500
         cmd.command_range_curriculum = [
-            {"iter":  4000, "lin_vel_x": [-1.5, 1.5], "lin_vel_y": [-0.6, 0.6], "ang_vel_yaw": [-1.5, 1.5]},
-            {"iter": 10000, "lin_vel_x": [-2.5, 2.5], "lin_vel_y": [-0.8, 0.8], "ang_vel_yaw": [-2.0, 2.0]},
-            {"iter": 18000, "lin_vel_x": [-3.5, 3.5], "lin_vel_y": [-1.0, 1.0], "ang_vel_yaw": [-2.5, 2.5]},
-            {"iter": 26000, "lin_vel_x": [-4.5, 4.5], "lin_vel_y": [-1.0, 1.0], "ang_vel_yaw": [-2.5, 2.5]},
+            {"iter":  4000, "lin_vel_x": [-1.0, 1.0], "lin_vel_y": [-0.5, 0.5], "ang_vel_yaw": [-1.25, 1.25]},
+            {"iter":  7000, "lin_vel_x": [-1.5, 1.5], "lin_vel_y": [-0.6, 0.6], "ang_vel_yaw": [-1.5, 1.5]},
+            {"iter": 10000, "lin_vel_x": [-2.0, 2.0], "lin_vel_y": [-0.7, 0.7], "ang_vel_yaw": [-1.75, 1.75]},
+            {"iter": 14000, "lin_vel_x": [-2.5, 2.5], "lin_vel_y": [-0.8, 0.8], "ang_vel_yaw": [-2.0, 2.0]},
+            {"iter": 18000, "lin_vel_x": [-3.0, 3.0], "lin_vel_y": [-0.9, 0.9], "ang_vel_yaw": [-2.25, 2.25]},
+            {"iter": 22000, "lin_vel_x": [-3.5, 3.5], "lin_vel_y": [-1.0, 1.0], "ang_vel_yaw": [-2.5, 2.5]},
+            {"iter": 26000, "lin_vel_x": [-4.0, 4.0], "lin_vel_y": [-1.0, 1.0], "ang_vel_yaw": [-2.5, 2.5]},
+            {"iter": 30000, "lin_vel_x": [-4.5, 4.5], "lin_vel_y": [-1.0, 1.0], "ang_vel_yaw": [-2.5, 2.5]},
             {"iter": 34000, "lin_vel_x": [-5.0, 5.0], "lin_vel_y": [-1.0, 1.0], "ang_vel_yaw": [-2.5, 2.5]},
         ]
 

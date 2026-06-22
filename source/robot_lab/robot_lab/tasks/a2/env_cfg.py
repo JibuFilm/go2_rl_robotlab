@@ -3,9 +3,9 @@
 #
 # A2 transcription of the go2 env_cfg (PATH_A_SESSION_BRIEF.md §3). This file is a
 # COPY of robot_lab/tasks/go2/env_cfg.py with ONLY the §3 robot-identity rows
-# changed (asset/name, base_link naming + termination, init z 0.45, A2 default
+# changed (asset/name, base_link naming + termination, init z 0.55, A2 default
 # angles incl. OPPOSITE hip signs via A2_CFG_UNITREE, kp/kd via A2_CFG_UNITREE,
-# base_height_target 0.40, max_contact_force ~408) + the Gate-T CANDIDATE
+# base_height_target 0.50, max_contact_force ~408) + the Gate-T CANDIDATE
 # body-coupled cost weights (torques / dof_power / dof_acc — translated for the
 # 41.55 kg A2, pending P1 confirmation; see RewardsCfg).
 #
@@ -46,11 +46,12 @@ JOINT_NAMES = [
 # §3: A2 base link is `base_link` (go2's is `base`).
 BASE_LINK_NAME = "base_link"
 FOOT_LINK_NAME = ".*_foot"
-# CORRECTED (clean-slate 2026-06-21): the A2's real operating PHYSICAL height is ~0.57 m. URDF FK on
-# the corrected stance (thigh 0.8 / calf -1.05, unitree.py A2_CFG_UNITREE) puts base_link at ~0.474 m
-# (physical top ~0.566 m). The prior 0.40 paired with the over-folded -1.8 calf (which only reaches
-# ~0.347 m) — internally inconsistent AND ~13 cm too low. base_height_l2 ramps to -10 by iter 5000, so
-# this target and the stance angles MUST stay consistent. (Smoke-confirm the settled value before launch.)
+# base_height_l2 measures base_link clearance above terrain. The corrected stance (thigh 0.8 /
+# calf -1.05, unitree.py A2_CFG_UNITREE) has a ~0.50 m natural contact-settled base (URDF FK
+# foot-center drop ~0.4685 + foot sphere r=0.032; MuJoCo kinematic settle confirms ~0.50). The
+# TARGET is set ~3 cm BELOW that natural settle so the policy holds a compliant, slightly-bent
+# stand rather than being driven to full kinematic extension (user decision 2026-06-22; also matches
+# the deploy stand_base_z 0.47 and the originally-launched V14 run).
 BASE_HEIGHT_TARGET = 0.47
 
 ##
@@ -444,7 +445,7 @@ class RewardsCfg:
         weight=-1.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=BASE_LINK_NAME),
-            "target_height": BASE_HEIGHT_TARGET,  # = BASE_HEIGHT_TARGET (0.47, corrected stance)
+            "target_height": BASE_HEIGHT_TARGET,
             "sensor_cfg": SceneEntityCfg("height_scanner_small"),
         }
     )
@@ -464,7 +465,7 @@ class RewardsCfg:
         func=mdp.feet_regulation,
         weight=-0.05,
         params={
-            "base_height_target": BASE_HEIGHT_TARGET,  # = BASE_HEIGHT_TARGET (0.47, corrected stance)
+            "base_height_target": BASE_HEIGHT_TARGET,
             "asset_cfg": SceneEntityCfg("robot", body_names=FOOT_LINK_NAME),
             "sensor_cfg": SceneEntityCfg("height_scanner_small"),
         },

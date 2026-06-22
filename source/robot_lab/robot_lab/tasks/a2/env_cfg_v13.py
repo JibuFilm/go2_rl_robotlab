@@ -5,7 +5,7 @@
 
 Why this exists (stacks on V12, drops nothing):
   V12's bravery arm climbs better (cleared ~0.28 in sim), but the policy's REST pose is a learned
-  collapse: body sagged below the 0.40 nominal stand, hips splayed wide, feet tucked under. That
+  collapse: body sagged below the corrected nominal stand, hips splayed wide, feet tucked under. That
   shape is the energy-minimal, fall-safest configuration — and at rest NOTHING in the reward fought
   it:
     * the energy terms (joint_power, joint_torques_l2) PAY for using less torque, and a splayed
@@ -19,8 +19,8 @@ Why this exists (stacks on V12, drops nothing):
 The fix (V13 adds, command-gated so it CANNOT fight the climb):
   Both posture penalties multiply by stand_still_scale ONLY when cmd<thr AND body_vel<thr
   (rewards.py: torch.where(cmd_large, running_reward, stand_still_scale * running_reward)). So raising
-  the scale snaps the joints back to default_joint_pos (hip +/-0.1, thigh 0.9, calf -1.8 = the clean
-  0.40 stand) AT REST, while the moving/​climbing weight is left ~unchanged — the gate is open during
+  the scale snaps the joints back to default_joint_pos (hip +/-0.1, thigh 0.8, calf -1.05 = the
+  corrected A2 stand) AT REST, while the moving/​climbing weight is left ~unchanged — the gate is open during
   locomotion, so the big thigh/calf excursions stairs need are untouched.
     P1 - hip splay (primary; hip is ~constant in a trot, so a heavier hip weight is safe even while
          moving). hip_pos_penalty_l1: weight -0.05 -> -0.15, stand_still_scale 1.0 -> 6.0.
@@ -67,7 +67,7 @@ class A2V13EnvCfg(A2V12EnvCfg):
 
         # --- P2: lift the leg tuck/sag at rest. Keep the MOVING weight small (-0.03) so stair
         # articulation is barely touched; the real correction is the stand-still multiplier, which
-        # only fires when cmd<thr AND body_vel<thr (pure rest), pulling thigh/calf to the 0.9/-1.8
-        # default = the clean 0.40 stand.
+        # only fires when cmd<thr AND body_vel<thr (pure rest), pulling thigh/calf to the corrected
+        # 0.8/-1.05 default stand.
         self.rewards.joint_pos_penalty_l1.weight = -0.03
         self.rewards.joint_pos_penalty_l1.params["stand_still_scale"] = 6.0

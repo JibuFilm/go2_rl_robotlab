@@ -65,7 +65,7 @@ class A2V12EnvCfg(A2V10EnvCfg):
             "asset_cfg": SceneEntityCfg("robot"),
             "contact_sensor_cfg": SceneEntityCfg("contact_forces", body_names=BASE_LINK_NAME),
             "base_sensor_cfg": SceneEntityCfg("height_scanner_small"),
-            "base_target": BASE_HEIGHT_TARGET,  # tracks the corrected stance (0.47), not a hardcoded 0.40
+            "base_target": BASE_HEIGHT_TARGET,  # tracks the corrected stance, not a hardcoded 0.40
         }
 
         # --- A1: backtrack penalty on the terrain dial (V10 already swapped this term to the terrain

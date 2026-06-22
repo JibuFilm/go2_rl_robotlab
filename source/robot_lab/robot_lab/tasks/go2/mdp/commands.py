@@ -73,6 +73,11 @@ class Go2RLGymCommand(CommandTerm):
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.zero_command_prob = 0
         self.max_command_x = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._curriculum_ema_speed_ratio = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_fall_rate = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_terrain_level = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_samples = 0
+        self._last_curriculum_hold_iter = -1
 
         self.cfg.command_range_curriculum = sorted(self.cfg.command_range_curriculum, key=lambda x: x['iter'], reverse=True)
 
@@ -127,6 +132,9 @@ class Go2RLGymCommand(CommandTerm):
             for i in range(len(self.cfg.command_range_curriculum)-1, -1, -1):  # iterate backwards to be able to pop entries
                 cfg = self.cfg.command_range_curriculum[i]
                 if current_iter >= cfg["iter"]:
+                    if not self._command_curriculum_ready(cfg, current_iter):
+                        self._maybe_log_curriculum_hold(cfg, current_iter)
+                        break
                     self.command_ranges["lin_vel_x"] = cfg["lin_vel_x"]
                     self.command_ranges["lin_vel_y"] = cfg["lin_vel_y"]
                     self.command_ranges["ang_vel_yaw"] = cfg["ang_vel_yaw"]
@@ -135,6 +143,9 @@ class Go2RLGymCommand(CommandTerm):
                     self.cfg.command_range_curriculum.pop(i)
                     self._update_env_command_ranges()
                     print(f"Command range updated at iter {current_iter}: {self.command_ranges}")
+                    if self.cfg.command_range_curriculum_mode == "competence":
+                        self._reset_command_curriculum_stats()
+                        break
         remaining_dist = torch.clip(0.625 * self.terrain_length - torch.norm(self.commands_xy_accumulation[env_ids], dim=1) * self.cfg.resampling_time, 0.0)
         self.time_left[env_ids] = self.cfg.resampling_time
         if self.cfg.dynamic_resample_commands:
@@ -260,6 +271,97 @@ class Go2RLGymCommand(CommandTerm):
     def _update_command(self):
         current_dist = torch.norm(self.robot.data.root_pos_w[:, :2] - self._env.scene.env_origins[:, :2], dim=1)
         self.max_move_distance = torch.max(self.max_move_distance, current_dist)
+        self._update_command_curriculum_stats()
+
+    def _update_command_curriculum_stats(self):
+        if self.cfg.command_range_curriculum_mode != "competence":
+            return
+
+        cmd_xy = self.commands[:, :2]
+        cmd_norm = torch.linalg.norm(cmd_xy, dim=1)
+        moving = cmd_norm > self.cfg.command_curriculum_min_cmd
+        if moving.any():
+            cmd_dir = cmd_xy / cmd_norm.clamp_min(1e-6).unsqueeze(1)
+            v_along = torch.sum(self.robot.data.root_lin_vel_b[:, :2] * cmd_dir, dim=1)
+            speed_ratio = torch.clamp(v_along / cmd_norm.clamp_min(1e-6), min=0.0, max=1.0)
+            speed_metric = speed_ratio[moving].mean()
+        else:
+            speed_metric = torch.tensor(1.0, dtype=torch.float, device=self.device)
+
+        reset_terminated = getattr(self._env, "reset_terminated", None)
+        if reset_terminated is None:
+            fall_metric = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        else:
+            fall_metric = reset_terminated.float().mean()
+
+        terrain = getattr(self._env.scene, "terrain", None)
+        terrain_levels = getattr(terrain, "terrain_levels", None) if terrain is not None else None
+        if terrain_levels is None:
+            terrain_metric = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        else:
+            terrain_metric = terrain_levels.float().mean()
+
+        alpha = float(self.cfg.command_curriculum_ema_alpha)
+        if self._curriculum_ema_samples == 0:
+            self._curriculum_ema_speed_ratio = speed_metric.detach()
+            self._curriculum_ema_fall_rate = fall_metric.detach()
+            self._curriculum_ema_terrain_level = terrain_metric.detach()
+        else:
+            self._curriculum_ema_speed_ratio = (
+                (1.0 - alpha) * self._curriculum_ema_speed_ratio + alpha * speed_metric.detach()
+            )
+            self._curriculum_ema_fall_rate = (
+                (1.0 - alpha) * self._curriculum_ema_fall_rate + alpha * fall_metric.detach()
+            )
+            self._curriculum_ema_terrain_level = (
+                (1.0 - alpha) * self._curriculum_ema_terrain_level + alpha * terrain_metric.detach()
+            )
+        self._curriculum_ema_samples += 1
+
+    def _reset_command_curriculum_stats(self):
+        self._curriculum_ema_speed_ratio = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_fall_rate = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_terrain_level = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_samples = 0
+
+    def _command_curriculum_ready(self, stage: dict, current_iter: int) -> bool:
+        mode = self.cfg.command_range_curriculum_mode
+        if mode == "time":
+            return True
+        if mode != "competence":
+            raise ValueError(f"Unknown command_range_curriculum_mode={mode!r}")
+
+        if current_iter < self.cfg.command_curriculum_warmup_iters:
+            return False
+        if self._curriculum_ema_samples < self.cfg.command_curriculum_min_samples:
+            return False
+
+        min_speed_ratio = stage.get("min_speed_ratio", self.cfg.command_curriculum_min_speed_ratio)
+        max_fall_rate = stage.get("max_fall_rate", self.cfg.command_curriculum_max_fall_rate)
+        min_terrain_level = stage.get("min_terrain_level", self.cfg.command_curriculum_min_terrain_level)
+        return (
+            float(self._curriculum_ema_speed_ratio) >= min_speed_ratio
+            and float(self._curriculum_ema_fall_rate) <= max_fall_rate
+            and float(self._curriculum_ema_terrain_level) >= min_terrain_level
+        )
+
+    def _maybe_log_curriculum_hold(self, stage: dict, current_iter: int):
+        interval = int(self.cfg.command_curriculum_log_interval)
+        if interval <= 0:
+            return
+        if current_iter == self._last_curriculum_hold_iter or current_iter % interval != 0:
+            return
+        self._last_curriculum_hold_iter = current_iter
+        print(
+            "Command range HOLD at iter "
+            f"{current_iter}: next={stage} "
+            f"speed_ratio={float(self._curriculum_ema_speed_ratio):.3f}/"
+            f"{stage.get('min_speed_ratio', self.cfg.command_curriculum_min_speed_ratio):.3f} "
+            f"fall={float(self._curriculum_ema_fall_rate):.3f}/"
+            f"{stage.get('max_fall_rate', self.cfg.command_curriculum_max_fall_rate):.3f} "
+            f"terrain={float(self._curriculum_ema_terrain_level):.2f}/"
+            f"{stage.get('min_terrain_level', self.cfg.command_curriculum_min_terrain_level):.2f}"
+        )
 
     def _update_env_command_ranges(self):
         """ Update environment-wise command ranges based on current command ranges and terrain type """
@@ -375,6 +477,24 @@ class Go2RLGymCommandCfg(CommandTermCfg):
         'ang_vel_yaw': [-2.0, 2.0], # min max [rad/s]
     }]
     """List for command range curriculums at specific training iterations"""
+    command_range_curriculum_mode: str = "time"
+    """'time' applies stages at their iter. 'competence' treats iter as earliest eligibility and waits for health metrics."""
+    command_curriculum_min_cmd: float = 0.2
+    """Commands below this norm are ignored when measuring achieved-speed ratio."""
+    command_curriculum_min_speed_ratio: float = 0.60
+    """Competence mode: EMA achieved speed along command / command magnitude required to open the next range."""
+    command_curriculum_max_fall_rate: float = 0.12
+    """Competence mode: maximum EMA termination rate allowed before opening the next range."""
+    command_curriculum_min_terrain_level: float = 0.0
+    """Competence mode: minimum EMA terrain level required before opening the next range."""
+    command_curriculum_ema_alpha: float = 0.01
+    """EMA rate for command-curriculum health signals."""
+    command_curriculum_min_samples: int = 200
+    """Minimum command-term updates before a competence-gated range can open."""
+    command_curriculum_warmup_iters: int = 0
+    """Minimum training iteration before competence-gated command stages can open."""
+    command_curriculum_log_interval: int = 500
+    """Print held competence-gated stages every N iterations. <=0 disables."""
     terrain_max_command_ranges: dict[str, dict] = {
         #### go2 terrains ####
         'wave':

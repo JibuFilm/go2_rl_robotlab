@@ -51,9 +51,11 @@ GYM_ID_SIGMA = [5 / 12, 1 / 4, 1 / 4, 1 / 2, 1 / 2, 3 / 4, 1.0, 1.0, 1 / 4]
 def oracle_dynamic_sigma(cmd_abs, max_sigma, levels, default, v_min, v_max):
     """Independent numpy transcription of legged_robot.py:1288-1308 (the test oracle)."""
     cmd_abs, max_sigma = np.asarray(cmd_abs, float), np.asarray(max_sigma, float)
+    v_min = np.broadcast_to(np.asarray(v_min, float), cmd_abs.shape)
+    v_max = np.broadcast_to(np.asarray(v_max, float), cmd_abs.shape)
     sigma = np.full_like(cmd_abs, default)
     m = (cmd_abs >= v_min) & (cmd_abs < v_max)
-    ratio = (cmd_abs[m] - v_min) / (v_max - v_min)
+    ratio = (cmd_abs[m] - v_min[m]) / (v_max[m] - v_min[m])
     sigma[m] = default + ratio * (max_sigma[m] - default)
     m = cmd_abs >= v_max
     sigma[m] = max_sigma[m]
@@ -74,6 +76,20 @@ def test_grid_against_oracle():
         want = oracle_dynamic_sigma(cmd, sig_max, levels, DEFAULT_SIGMA, v_min, v_max)
         np.testing.assert_allclose(got.numpy(), want, rtol=0, atol=1e-5)
     print("PASS grid vs oracle (40k samples)")
+
+
+def test_tensor_vmax_against_oracle():
+    cmd = np.array([0.4, 0.75, 1.0, 1.5, 2.0, 4.0])
+    sig_max = np.array([0.75, 0.75, 0.75, 0.5, 1.0, 0.25])
+    levels = np.array([9, 9, 9, 9, 4, 9])
+    v_max = np.array([1.5, 1.5, 1.0, 1.5, 2.5, 5.0])
+    got = core.dynamic_sigma(torch.tensor(cmd, dtype=torch.float32),
+                             torch.tensor(sig_max, dtype=torch.float32),
+                             torch.tensor(levels), DEFAULT_SIGMA,
+                             0.5, torch.tensor(v_max, dtype=torch.float32))
+    want = oracle_dynamic_sigma(cmd, sig_max, levels, DEFAULT_SIGMA, 0.5, v_max)
+    np.testing.assert_allclose(got.numpy(), want, rtol=0, atol=1e-5)
+    print("PASS tensor v_max vs oracle")
 
 
 def test_spot_values():
@@ -144,6 +160,7 @@ def test_terrain_maxima_fixed():
 
 if __name__ == "__main__":
     test_grid_against_oracle()
+    test_tensor_vmax_against_oracle()
     test_spot_values()
     test_column_binning_matches_gym()
     test_uniform_sigma_reduces_to_port_formula()

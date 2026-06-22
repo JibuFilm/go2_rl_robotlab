@@ -79,8 +79,8 @@ def dynamic_sigma(
     max_sigma_per_env: torch.Tensor,
     terrain_levels: torch.Tensor,
     default_sigma: float,
-    v_min: float,
-    v_max: float,
+    v_min: float | torch.Tensor,
+    v_max: float | torch.Tensor,
 ) -> torch.Tensor:
     """Per-env tracking sigma — transcribed from ``legged_robot.py:1288-1308``
     (``_get_dynamic_sigma``):
@@ -94,11 +94,16 @@ def dynamic_sigma(
     """
     target = max_sigma_per_env
     sigma = torch.full_like(cmd_abs, default_sigma)
-    mask = (cmd_abs >= v_min) & (cmd_abs < v_max)
+    v_min_t = torch.as_tensor(v_min, device=cmd_abs.device, dtype=cmd_abs.dtype)
+    v_max_t = torch.as_tensor(v_max, device=cmd_abs.device, dtype=cmd_abs.dtype)
+    v_min_t = torch.broadcast_to(v_min_t, cmd_abs.shape)
+    v_max_t = torch.broadcast_to(v_max_t, cmd_abs.shape)
+    denom = torch.clamp(v_max_t - v_min_t, min=1e-6)
+    mask = (cmd_abs >= v_min_t) & (cmd_abs < v_max_t)
     if mask.any():
-        ratio = (cmd_abs[mask] - v_min) / (v_max - v_min)
+        ratio = (cmd_abs[mask] - v_min_t[mask]) / denom[mask]
         sigma[mask] = default_sigma + ratio * (target[mask] - default_sigma)
-    mask = cmd_abs >= v_max
+    mask = cmd_abs >= v_max_t
     if mask.any():
         sigma[mask] = target[mask]
     level_scale = torch.clamp(torch.exp((terrain_levels.float() + 1.0) / 10.0) - 1.0, max=1.0)

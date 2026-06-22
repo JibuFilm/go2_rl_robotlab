@@ -934,8 +934,40 @@ import os  # noqa: E402
 from .dynamic_sigma_core import cols_to_max_sigma, dynamic_sigma  # noqa: E402
 
 
+def _terrain_command_cap_per_env(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    axis_key: str,
+    fallback: float,
+) -> torch.Tensor:
+    """Per-env command cap from the terrain table, independent of the current global curriculum range."""
+    out = torch.full((env.num_envs,), float(fallback), device=env.device)
+    try:
+        command = env.command_manager.get_term(command_name)
+        terrain_idxs = command.terrain_idxs
+        terrain_types = command.terrain_types
+        ranges = command.cfg.terrain_max_command_ranges
+    except (AttributeError, KeyError, LookupError):
+        return out
+
+    for terrain_idx, terrain_name in enumerate(terrain_types):
+        terrain_range = ranges.get(terrain_name, {}).get(axis_key)
+        if terrain_range is None:
+            continue
+        cap = max(abs(float(terrain_range[0])), abs(float(terrain_range[1])))
+        out = torch.where(terrain_idxs == terrain_idx, torch.full_like(out, cap), out)
+    return out
+
+
 def _dynamic_sigma_per_env(
-    env: ManagerBasedRLEnv, cmd_abs: torch.Tensor, default_sigma: float, v_min: float, v_max: float
+    env: ManagerBasedRLEnv,
+    cmd_abs: torch.Tensor,
+    default_sigma: float,
+    v_min: float,
+    v_max: float,
+    command_name: str | None = None,
+    axis_key: str | None = None,
+    terrain_cap_aware: bool = False,
 ) -> torch.Tensor:
     """Per-env sigma from terrain type + level. Falls back to the default sigma when terrain
     curriculum state is absent (reference behavior when curriculum is off,
@@ -952,7 +984,12 @@ def _dynamic_sigma_per_env(
         props = [gen.sub_terrains[n].proportion for n in names]
         per_col = cols_to_max_sigma(names, props, gen.num_cols).to(cmd_abs.device)
         env._dyn_sigma_per_col = per_col
-    sigma = dynamic_sigma(cmd_abs, per_col[types], levels, default_sigma, v_min, v_max)
+    effective_v_max = v_max
+    if terrain_cap_aware and command_name is not None and axis_key is not None:
+        cap = _terrain_command_cap_per_env(env, command_name, axis_key, v_max)
+        effective_v_max = torch.minimum(cap, torch.full_like(cap, float(v_max)))
+        effective_v_max = torch.maximum(effective_v_max, torch.full_like(cap, float(v_min) + 1e-6))
+    sigma = dynamic_sigma(cmd_abs, per_col[types], levels, default_sigma, v_min, effective_v_max)
     # G0' live-wiring acceptance check (Path-A brief §7 A1): the sigma math is proven offline,
     # but the terrain_levels/terrain_types glue only executes on GPU — with this env var set the
     # smoke logs sigma stats so we can see sigma move with terrain level + command magnitude.
@@ -970,7 +1007,7 @@ def _dynamic_sigma_per_env(
             # is legitimately all-default (band starts at v_min); this line proves the live glue
             # moves sigma without waiting 20k iters for stage-2 commands.
             synth = dynamic_sigma(torch.full_like(cmd_abs, 2.0), per_col[types], levels,
-                                  default_sigma, v_min, v_max)
+                                  default_sigma, v_min, effective_v_max)
             print(f"[DYN_SIGMA_SYNTH] cmd=2.0 sigma min/mean/max="
                   f"{float(synth.min()):.4f}/{float(synth.mean()):.4f}/{float(synth.max()):.4f}")
     return sigma
@@ -982,6 +1019,7 @@ def track_lin_vel_xy_exp_dynamic_sigma(
     command_name: str,
     v_min: float = 0.5,
     v_max: float = 1.5,
+    terrain_cap_aware: bool = False,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Linear-velocity tracking with per-axis dynamic sigma (legged_robot.py:1310-1322):
@@ -990,8 +1028,14 @@ def track_lin_vel_xy_exp_dynamic_sigma(
     asset: RigidObject = env.scene[asset_cfg.name]
     cmd = env.command_manager.get_command(command_name)
     default_sigma = std**2
-    sigma_x = _dynamic_sigma_per_env(env, torch.abs(cmd[:, 0]), default_sigma, v_min, v_max)
-    sigma_y = _dynamic_sigma_per_env(env, torch.abs(cmd[:, 1]), default_sigma, v_min, v_max)
+    sigma_x = _dynamic_sigma_per_env(
+        env, torch.abs(cmd[:, 0]), default_sigma, v_min, v_max,
+        command_name=command_name, axis_key="lin_vel_x", terrain_cap_aware=terrain_cap_aware
+    )
+    sigma_y = _dynamic_sigma_per_env(
+        env, torch.abs(cmd[:, 1]), default_sigma, v_min, v_max,
+        command_name=command_name, axis_key="lin_vel_y", terrain_cap_aware=terrain_cap_aware
+    )
     err_sq = torch.square(cmd[:, :2] - asset.data.root_lin_vel_b[:, :2])
     return torch.exp(-(err_sq[:, 0] / sigma_x + err_sq[:, 1] / sigma_y))
 
@@ -1002,13 +1046,17 @@ def track_ang_vel_z_exp_dynamic_sigma(
     command_name: str,
     v_min: float = 1.0,
     v_max: float = 2.0,
+    terrain_cap_aware: bool = False,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Yaw-rate tracking with dynamic sigma from |cmd_wz| (legged_robot.py:1324-1333)."""
     asset: RigidObject = env.scene[asset_cfg.name]
     cmd = env.command_manager.get_command(command_name)
     default_sigma = std**2
-    sigma = _dynamic_sigma_per_env(env, torch.abs(cmd[:, 2]), default_sigma, v_min, v_max)
+    sigma = _dynamic_sigma_per_env(
+        env, torch.abs(cmd[:, 2]), default_sigma, v_min, v_max,
+        command_name=command_name, axis_key="ang_vel_yaw", terrain_cap_aware=terrain_cap_aware
+    )
     ang_vel_error_sq = torch.square(cmd[:, 2] - asset.data.root_ang_vel_b[:, 2])
     return torch.exp(-ang_vel_error_sq / sigma)
 

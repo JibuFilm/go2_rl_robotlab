@@ -169,10 +169,10 @@ GO2_CFG_UNITREE = UnitreeArticulationCfg(
 #     unitree_ros/a2_description -> resources/a2/urdf/a2.urdf. Effort/velocity
 #     limits come from the URDF: 120/120/180 N·m, 22/22/14.6667 rad/s (VERIFIED
 #     against the vendored URDF 2026-06-12 — see PORT_AUDIT / report).
-#   * init z 0.45 (stand_base_z 0.4 + drop margin; brief §3).
+#   * init z 0.55 (corrected stand target + reset drop margin).
 #   * default angles incl. the OPPOSITE hip signs (A2: L_hip=-0.1, R_hip=+0.1 —
-#     the MIRROR of go2's L=+0.1/R=-0.1), thigh 0.9, calf -1.8
-#     (robot_config.py A2 default_stand; a2_constants.py INIT_STATE).
+#     the MIRROR of go2's L=+0.1/R=-0.1), thigh 0.8, calf -1.05
+#     (V14 corrected A2 default_stand; a2_constants.py INIT_STATE).
 #   * per-joint-group gains kp 100/100/150, kd 4/4/6, effort 120/120/180,
 #     armature 0.03 (robot_config.py A2 kp/kd/effort; a2_constants.py actuators).
 #     The go2 used one Go2HV torque-speed actuator (kp 25); the A2 actuator is
@@ -194,7 +194,7 @@ A2_CFG_UNITREE = UnitreeArticulationCfg(
         merge_fixed_joints=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.55),  # corrected stand: base_link ~0.474m (URDF FK) + ~0.075 drop margin
+        pos=(0.0, 0.0, 0.55),  # corrected stand target ~0.50 m + reset drop margin
         joint_pos={
             # A2 hip signs are OPPOSITE go2 (brief §3): left hips -0.1, right hips +0.1.
             ".*L_hip_joint": -0.1,
@@ -202,9 +202,10 @@ A2_CFG_UNITREE = UnitreeArticulationCfg(
             # CORRECTED STANCE (clean-slate 2026-06-21). The prior 0.9/-1.8 over-folded the leg to
             # ~0.44 m PHYSICAL height (62% leg reach) — vs the real A2's ~0.57 m operating height.
             # URDF forward-kinematics (thigh swings the leg fwd from vertical; foot sphere r=0.032;
-            # trunk top +0.092 m above base_link) gives thigh 0.8 / calf -1.05 -> base_link 0.474 m
-            # -> physical top ~0.566 m (matches the 0.57 m spec); ~81% leg reach, a tall operating
-            # bend. Pairs with BASE_HEIGHT_TARGET=0.47 in tasks/a2/env_cfg.py (they MUST move together).
+            # trunk top +0.092 m above base_link) gives thigh 0.8 / calf -1.05 -> foot-center drop
+            # ~0.4685 m -> contact-settled base_link ~0.50 m -> physical top ~0.59 m. BASE_HEIGHT_TARGET
+            # in tasks/a2/env_cfg.py is 0.47 — deliberately ~3 cm BELOW this natural settle (compliant
+            # slightly-bent stand, not full extension); keep them coherent if either moves.
             ".*_thigh_joint": 0.8,
             ".*_calf_joint": -1.05,
         },
