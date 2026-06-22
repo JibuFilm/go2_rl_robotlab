@@ -48,7 +48,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
 import robot_lab.tasks.go2.mdp as mdp
-from robot_lab.tasks.a2.env_cfg import BASE_LINK_NAME
+from robot_lab.tasks.a2.env_cfg import BASE_LINK_NAME, BASE_HEIGHT_TARGET
 from robot_lab.tasks.a2.env_cfg_v10 import A2V10EnvCfg
 
 
@@ -65,7 +65,7 @@ class A2V12EnvCfg(A2V10EnvCfg):
             "asset_cfg": SceneEntityCfg("robot"),
             "contact_sensor_cfg": SceneEntityCfg("contact_forces", body_names=BASE_LINK_NAME),
             "base_sensor_cfg": SceneEntityCfg("height_scanner_small"),
-            "base_target": 0.40,
+            "base_target": BASE_HEIGHT_TARGET,  # tracks the corrected stance (0.47), not a hardcoded 0.40
         }
 
         # --- A1: backtrack penalty on the terrain dial (V10 already swapped this term to the terrain
@@ -98,7 +98,11 @@ class A2V12EnvCfg(A2V10EnvCfg):
             weight=-0.5,
             params={
                 "sensor_cfg": SceneEntityCfg("contact_forces", body_names=BASE_LINK_NAME),
-                "threshold": 5.0,
+                # THRESHOLD TAILORED: 5 N was a small-robot trip-wire. On the A2's ~408 N body a 5 N
+                # threshold fires on feather-touch and over-suppresses the SURVIVABLE base-scrape the
+                # termination-grace is meant to ALLOW. 30 N charges real belly-DRAGGING (sustained load),
+                # not incidental contact — mass-scaled, mirroring the thigh undesired_contacts fix.
+                "threshold": 30.0,
             },
         )
 

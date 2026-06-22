@@ -194,13 +194,19 @@ A2_CFG_UNITREE = UnitreeArticulationCfg(
         merge_fixed_joints=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.45),  # brief §3: stand_base_z 0.4 + drop margin
+        pos=(0.0, 0.0, 0.55),  # corrected stand: base_link ~0.474m (URDF FK) + ~0.075 drop margin
         joint_pos={
             # A2 hip signs are OPPOSITE go2 (brief §3): left hips -0.1, right hips +0.1.
             ".*L_hip_joint": -0.1,
             ".*R_hip_joint": 0.1,
-            ".*_thigh_joint": 0.9,
-            ".*_calf_joint": -1.8,
+            # CORRECTED STANCE (clean-slate 2026-06-21). The prior 0.9/-1.8 over-folded the leg to
+            # ~0.44 m PHYSICAL height (62% leg reach) — vs the real A2's ~0.57 m operating height.
+            # URDF forward-kinematics (thigh swings the leg fwd from vertical; foot sphere r=0.032;
+            # trunk top +0.092 m above base_link) gives thigh 0.8 / calf -1.05 -> base_link 0.474 m
+            # -> physical top ~0.566 m (matches the 0.57 m spec); ~81% leg reach, a tall operating
+            # bend. Pairs with BASE_HEIGHT_TARGET=0.47 in tasks/a2/env_cfg.py (they MUST move together).
+            ".*_thigh_joint": 0.8,
+            ".*_calf_joint": -1.05,
         },
         joint_vel={".*": 0.0},
     ),

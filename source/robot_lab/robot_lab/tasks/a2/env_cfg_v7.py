@@ -101,15 +101,18 @@ class A2V7RewardsCfg(RewardsCfg):
     # (a strong flat-orientation penalty fights slope/stair climbing). PROVENANCE: recipe §3, gentle end.
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
 
-    # ADD: reward proper swing time → cleaner steps + landings. IsaacLab-canonical quadruped default
-    # (weight 0.125, threshold 0.5 s). Uses the contact_forces sensor (track_air_time=True). recipe §4.
+    # ADD: reward proper swing time → cleaner steps + landings. Uses the contact_forces sensor.
+    # THRESHOLD TAILORED (clean-slate): IsaacLab's 0.5 s is a ~0.42 m-leg (go2-class) stride. The A2's
+    # 0.55 m leg (×1.31) has a longer natural swing period (~√L → ×1.14 ≈ 0.57 s); it's also heavier /
+    # lower-cadence. 0.57 is a leg-length-scaled FLOOR estimate — refine to ~0.85× the MEASURED median
+    # air-time off the first V14 walker (foot-contact log) before trusting it. recipe §4.
     feet_air_time = RewTerm(
         func=mdp.feet_air_time,
         weight=0.125,
         params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=FOOT_LINK_NAME),
-            "threshold": 0.5,
+            "threshold": 0.57,  # was 0.5 (go2/IsaacLab default); A2 leg-length-scaled, measure-refine
         },
     )
 

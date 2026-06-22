@@ -132,6 +132,20 @@ gym.register(
     },
 )
 
+# V14 = CLEAN-SLATE capability-matched A2 (fresh train). Corrected stance (0.57m physical), Wu's
+# per-terrain command caps restored (A2-scaled), fresh-walker curriculum to ±5.0, full Gate-T energy,
+# un-trip-wired climbing contact, terrain to the real envelope — all our reward-shaping fixes (dial,
+# goal-relax, bravery, posture, gate-tune) re-based onto the corrected foundation. See env_cfg_v14.py.
+gym.register(
+    id="RobotLab-A2-V14-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v14:A2V14EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V14MoECTSRunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package

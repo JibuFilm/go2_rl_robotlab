@@ -75,3 +75,13 @@ class A2V13MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
 
     experiment_name = "a2_v13_moe_cts"
     algorithm = RslRlMoeCtsV13AlgorithmCfg()
+
+
+@configclass
+class A2V14MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
+    """V14 (clean-slate) runner = V5 perceptive-student policy + the V13 gate-selection algorithm cfg
+    (z_loss 3e-4 / load_balance 0.002). The clean-slate corrections are all env-side (A2V14EnvCfg);
+    the algorithm is unchanged from V13. Intended for a FRESH train (no --resume)."""
+
+    experiment_name = "a2_v14_moe_cts"
+    algorithm = RslRlMoeCtsV13AlgorithmCfg()

@@ -46,8 +46,12 @@ JOINT_NAMES = [
 # §3: A2 base link is `base_link` (go2's is `base`).
 BASE_LINK_NAME = "base_link"
 FOOT_LINK_NAME = ".*_foot"
-# §3: A2 base height target 0.40 (robot_config.py stand_base_z; go2 was 0.38).
-BASE_HEIGHT_TARGET = 0.40
+# CORRECTED (clean-slate 2026-06-21): the A2's real operating PHYSICAL height is ~0.57 m. URDF FK on
+# the corrected stance (thigh 0.8 / calf -1.05, unitree.py A2_CFG_UNITREE) puts base_link at ~0.474 m
+# (physical top ~0.566 m). The prior 0.40 paired with the over-folded -1.8 calf (which only reaches
+# ~0.347 m) — internally inconsistent AND ~13 cm too low. base_height_l2 ramps to -10 by iter 5000, so
+# this target and the stance angles MUST stay consistent. (Smoke-confirm the settled value before launch.)
+BASE_HEIGHT_TARGET = 0.47
 
 ##
 # Scene definition
@@ -176,7 +180,7 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True)},
             noise=Unoise(n_min=-2.0, n_max=2.0),
             clip=(-100.0, 100.0),
-            scale=0.05,
+            scale=0.068,  # TAILORED: go2 0.05 x(30/22) — span the A2 22 rad/s joint-vel limit
         )
         actions = ObsTerm(
             func=mdp.last_action,
@@ -222,7 +226,7 @@ class ObservationsCfg:
             func=mdp.joint_vel_rel,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True)},
             clip=(-100.0, 100.0),
-            scale=0.05,
+            scale=0.068,  # TAILORED: go2 0.05 x(30/22) — span the A2 22 rad/s joint-vel limit
         )
         actions = ObsTerm(
             func=mdp.last_action,
@@ -239,13 +243,13 @@ class ObservationsCfg:
             func=mdp.joint_effort,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True)},
             clip=(-100.0, 100.0),
-            scale=0.01,
+            scale=0.0013,  # TAILORED (critic): go2 0.01 x(23.5/180) — A2 180 N·m torque range
         )
         contact_force = ObsTerm(
             func=mdp.foot_contact_force_norm,
             params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=FOOT_LINK_NAME)},
             clip=(-100.0, 100.0),
-            scale=1e-3,
+            scale=3.8e-4,  # TAILORED (critic): go2 1e-3 x(150/408) — A2 408 N foot-load range
         )
         height_scan = ObsTerm(
             func=mdp.height_scan,
@@ -276,10 +280,11 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=BASE_LINK_NAME),
-            # ⚠️ PROVENANCE / KNOWN-DRIFT: ±1.0 kg is go2-absolute (±6.2% on go2's 16 kg, but only
-            # ±2.4% on the A2's 41.55 kg → under-randomized). Frozen for V5; corrected to ±2.6 kg in
-            # env_cfg_v6.py. See A2_CAPABILITY_SSOT.md §4.
-            "mass_distribution_params": (-1.0, 1.0),
+            # CORRECTED (clean-slate 2026-06-21): TRANSLATED from go2's ±1.0 kg = ±6.2% on 16.09 kg →
+            # fraction-matched to the A2 → ±6.2% × 41.55 ≈ ±2.6 kg. (±1.0 kg was only ±2.4% on the A2 —
+            # under-randomized; A2_CAPABILITY_SSOT.md §4.) Baked into the BASE here so it isn't reliant
+            # on a vN override (the old env_cfg_v6.py patch).
+            "mass_distribution_params": (-2.6, 2.6),
             "operation": "add",
             "recompute_inertia": True,
         },
@@ -389,9 +394,12 @@ class RewardsCfg:
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp_dynamic_sigma,
         weight=1.0,
-        # ⚠️ PROVENANCE / KNOWN-DRIFT: v_max 1.5 is go2's speed band ("from go2_config.py"); the σ
-        # tolerance is keyed to go2 speeds. Frozen for V5; widened to v_max 5.0 in env_cfg_v6.py.
-        params={"command_name": "base_velocity", "std": 0.5, "v_min": 0.5, "v_max": 1.5}
+        # σ BAND TAILORED (clean-slate): v_max is the A2 sprint ceiling (~5 m/s peak, SSOT §3), NOT
+        # go2's 1.5. The dynamic-σ tolerance must stay alive across the A2's full 0→5 m/s band or
+        # high-speed tracking error reads as a permanent miss. Baked into the BASE so go2's 1.5 can't
+        # leak via any path. (std 0.5 = dimensionless tolerance floor, body-invariant.) This is the
+        # PRIMARY speed reward in the clean slate (re-promoted in env_cfg_v14.py).
+        params={"command_name": "base_velocity", "std": 0.5, "v_min": 0.5, "v_max": 5.0}
     )
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_exp_dynamic_sigma,
@@ -436,7 +444,7 @@ class RewardsCfg:
         weight=-1.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=BASE_LINK_NAME),
-            "target_height": BASE_HEIGHT_TARGET,  # §3: 0.40
+            "target_height": BASE_HEIGHT_TARGET,  # = BASE_HEIGHT_TARGET (0.47, corrected stance)
             "sensor_cfg": SceneEntityCfg("height_scanner_small"),
         }
     )
@@ -456,7 +464,7 @@ class RewardsCfg:
         func=mdp.feet_regulation,
         weight=-0.05,
         params={
-            "base_height_target": BASE_HEIGHT_TARGET,  # §3: 0.40
+            "base_height_target": BASE_HEIGHT_TARGET,  # = BASE_HEIGHT_TARGET (0.47, corrected stance)
             "asset_cfg": SceneEntityCfg("robot", body_names=FOOT_LINK_NAME),
             "sensor_cfg": SceneEntityCfg("height_scanner_small"),
         },
@@ -509,7 +517,10 @@ class CurriculumCfg:
         "term_name": "lin_vel_z_l2", "initial_weight": -2.0, "final_weight": -0.0, "start_it": 0, "end_it": 1500
         })
     base_height_l2 = CurrTerm(mdp.gradual_reward_weight_modification, params={
-        "term_name": "base_height_l2", "initial_weight": -1.0, "final_weight": -10.0, "start_it": 0, "end_it": 5000
+        # TAILORED: end_it 5000 was go2-run-tuned — it slams the -10 posture penalty to full strength while
+        # the A2's V14 speed curriculum still commands only ~±1.5 (±2.5 not until iter 10k). Stretch to 9000
+        # so the strongest posture-hold term arrives roughly as mid-band speed arrives (SSOT §3).
+        "term_name": "base_height_l2", "initial_weight": -1.0, "final_weight": -10.0, "start_it": 0, "end_it": 9000
         })
 
 ##
