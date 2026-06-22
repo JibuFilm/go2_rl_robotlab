@@ -34,10 +34,11 @@ APPLIED HERE (the clean-slate command/terrain/reward corrections):
      structurally can't see). track_lin_vel_xy_exp 0.0 -> 1.0; track_lin_vel_dial 0.35 -> 0.1 (kept
      small — note in code: the dial scales with commanded speed, so it's a general progress nudge, not
      a climb-ONLY term; a clean climb-isolated bonus is a future refinement).
-  2. COMPETENCE-GATED fresh-walker command curriculum. V8's schedule (init ±2.0; milestones
-     15k/28k/42k) is warm-start-coupled. A fresh walker starts at ±0.5; each later range has an
-     earliest iteration but opens only after the live command term sees enough speed tracking with a
-     low fall rate, one range at a time.
+  2. COMPETENCE-DRIVEN fresh-walker command curriculum (iter floor RETIRED). V8's schedule (init ±2.0;
+     iter milestones 15k/28k/42k) is warm-start-coupled and arbitrary. A fresh walker starts at ±0.5;
+     each later range opens PURELY when the live command term shows enough speed tracking (EMA
+     speed-ratio >= 0.60) at a low fall rate, one range at a time. The stage iters now only set ORDER,
+     not a time gate — readiness drives the ramp, so a fast learner advances fast and a slow one waits.
   3. ENERGY weights restored to FULL Gate-T candidates. V12 HALVED joint_torques_l2/joint_power as a
      bravery band-aid on top of unvalidated candidates; the clean slate uses the full translated values
      (re-anchor via the Gate-T step-2 a2 smoke is still owed — flagged, not silently inherited halved).

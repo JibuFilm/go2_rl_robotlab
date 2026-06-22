@@ -131,7 +131,11 @@ class Go2RLGymCommand(CommandTerm):
             current_iter = env.common_step_counter // self.cfg.num_steps_per_iter
             for i in range(len(self.cfg.command_range_curriculum)-1, -1, -1):  # iterate backwards to be able to pop entries
                 cfg = self.cfg.command_range_curriculum[i]
-                if current_iter >= cfg["iter"]:
+                # 'time' mode: cfg['iter'] is an eligibility FLOOR. 'competence' mode: the iter floor is
+                # RETIRED -- cfg['iter'] only sets stage ORDER (stages are iter-sorted), and readiness is
+                # the SOLE gate (global warmup + EMA speed-ratio/fall-rate). So a stage opens as soon as
+                # the robot has earned the previous one, not when an arbitrary iteration count elapses.
+                if self.cfg.command_range_curriculum_mode == "competence" or current_iter >= cfg["iter"]:
                     if not self._command_curriculum_ready(cfg, current_iter):
                         self._maybe_log_curriculum_hold(cfg, current_iter)
                         break
@@ -478,7 +482,8 @@ class Go2RLGymCommandCfg(CommandTermCfg):
     }]
     """List for command range curriculums at specific training iterations"""
     command_range_curriculum_mode: str = "time"
-    """'time' applies stages at their iter. 'competence' treats iter as earliest eligibility and waits for health metrics."""
+    """'time' applies stages at their iter (iter = eligibility floor). 'competence' RETIRES the iter floor:
+    iter only sets stage ORDER, and readiness (global warmup + EMA speed-ratio/fall-rate) is the SOLE gate."""
     command_curriculum_min_cmd: float = 0.2
     """Commands below this norm are ignored when measuring achieved-speed ratio."""
     command_curriculum_min_speed_ratio: float = 0.60
