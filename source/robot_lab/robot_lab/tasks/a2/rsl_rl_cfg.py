@@ -96,3 +96,7 @@ class A2V15MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
 
     experiment_name = "a2_v15_moe_cts"
     algorithm = RslRlMoeCtsV13AlgorithmCfg()
+    # checkpoint cadence aligned to the every-400 eval-curate loop (RUNPOD_SETUP.md §E): the in-pod
+    # daemon benches each new model_<N>.pt, keeps the rolling best (deletes the superseded one), and
+    # prunes non-record checkpoints — baseline stays resumable. V14 was 500; V15-only override.
+    save_interval = 400
