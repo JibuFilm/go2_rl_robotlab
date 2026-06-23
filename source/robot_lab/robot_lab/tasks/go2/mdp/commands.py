@@ -76,6 +76,7 @@ class Go2RLGymCommand(CommandTerm):
         self._curriculum_ema_speed_ratio = torch.tensor(0.0, dtype=torch.float, device=self.device)
         self._curriculum_ema_fall_rate = torch.tensor(0.0, dtype=torch.float, device=self.device)
         self._curriculum_ema_terrain_level = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_drift_ratio = torch.tensor(0.0, dtype=torch.float, device=self.device)
         self._curriculum_ema_samples = 0
         self._last_curriculum_hold_iter = -1
 
@@ -286,11 +287,26 @@ class Go2RLGymCommand(CommandTerm):
         moving = cmd_norm > self.cfg.command_curriculum_min_cmd
         if moving.any():
             cmd_dir = cmd_xy / cmd_norm.clamp_min(1e-6).unsqueeze(1)
-            v_along = torch.sum(self.robot.data.root_lin_vel_b[:, :2] * cmd_dir, dim=1)
+            v_xy = self.robot.data.root_lin_vel_b[:, :2]
+            v_along = torch.sum(v_xy * cmd_dir, dim=1)
             speed_ratio = torch.clamp(v_along / cmd_norm.clamp_min(1e-6), min=0.0, max=1.0)
-            speed_metric = speed_ratio[moving].mean()
+            # lateral DRIFT: speed perpendicular to the command, normalized by |cmd|. speed_ratio sees only
+            # the along-command component, so a robot veering hard still scores well -> gate drift separately.
+            v_perp = torch.linalg.norm(v_xy - v_along.unsqueeze(1) * cmd_dir, dim=1)
+            drift_ratio = torch.clamp(v_perp / cmd_norm.clamp_min(1e-6), min=0.0, max=5.0)
+            if self.cfg.command_curriculum_speed_weighting == "magnitude":
+                # weight by command magnitude so FAST commands dominate -> the gate reflects tracking at the
+                # TOP of the range, not the easy low-command average that hides the high-command tail.
+                w = cmd_norm[moving]
+                wsum = w.sum().clamp_min(1e-6)
+                speed_metric = (speed_ratio[moving] * w).sum() / wsum
+                drift_metric = (drift_ratio[moving] * w).sum() / wsum
+            else:
+                speed_metric = speed_ratio[moving].mean()
+                drift_metric = drift_ratio[moving].mean()
         else:
             speed_metric = torch.tensor(1.0, dtype=torch.float, device=self.device)
+            drift_metric = torch.tensor(0.0, dtype=torch.float, device=self.device)
 
         reset_terminated = getattr(self._env, "reset_terminated", None)
         if reset_terminated is None:
@@ -310,6 +326,7 @@ class Go2RLGymCommand(CommandTerm):
             self._curriculum_ema_speed_ratio = speed_metric.detach()
             self._curriculum_ema_fall_rate = fall_metric.detach()
             self._curriculum_ema_terrain_level = terrain_metric.detach()
+            self._curriculum_ema_drift_ratio = drift_metric.detach()
         else:
             self._curriculum_ema_speed_ratio = (
                 (1.0 - alpha) * self._curriculum_ema_speed_ratio + alpha * speed_metric.detach()
@@ -320,12 +337,16 @@ class Go2RLGymCommand(CommandTerm):
             self._curriculum_ema_terrain_level = (
                 (1.0 - alpha) * self._curriculum_ema_terrain_level + alpha * terrain_metric.detach()
             )
+            self._curriculum_ema_drift_ratio = (
+                (1.0 - alpha) * self._curriculum_ema_drift_ratio + alpha * drift_metric.detach()
+            )
         self._curriculum_ema_samples += 1
 
     def _reset_command_curriculum_stats(self):
         self._curriculum_ema_speed_ratio = torch.tensor(0.0, dtype=torch.float, device=self.device)
         self._curriculum_ema_fall_rate = torch.tensor(0.0, dtype=torch.float, device=self.device)
         self._curriculum_ema_terrain_level = torch.tensor(0.0, dtype=torch.float, device=self.device)
+        self._curriculum_ema_drift_ratio = torch.tensor(0.0, dtype=torch.float, device=self.device)
         self._curriculum_ema_samples = 0
 
     def _command_curriculum_ready(self, stage: dict, current_iter: int) -> bool:
@@ -343,10 +364,12 @@ class Go2RLGymCommand(CommandTerm):
         min_speed_ratio = stage.get("min_speed_ratio", self.cfg.command_curriculum_min_speed_ratio)
         max_fall_rate = stage.get("max_fall_rate", self.cfg.command_curriculum_max_fall_rate)
         min_terrain_level = stage.get("min_terrain_level", self.cfg.command_curriculum_min_terrain_level)
+        max_drift_ratio = stage.get("max_drift_ratio", self.cfg.command_curriculum_max_drift_ratio)
         return (
             float(self._curriculum_ema_speed_ratio) >= min_speed_ratio
             and float(self._curriculum_ema_fall_rate) <= max_fall_rate
             and float(self._curriculum_ema_terrain_level) >= min_terrain_level
+            and float(self._curriculum_ema_drift_ratio) <= max_drift_ratio
         )
 
     def _maybe_log_curriculum_hold(self, stage: dict, current_iter: int):
@@ -363,6 +386,8 @@ class Go2RLGymCommand(CommandTerm):
             f"{stage.get('min_speed_ratio', self.cfg.command_curriculum_min_speed_ratio):.3f} "
             f"fall={float(self._curriculum_ema_fall_rate):.3f}/"
             f"{stage.get('max_fall_rate', self.cfg.command_curriculum_max_fall_rate):.3f} "
+            f"drift={float(self._curriculum_ema_drift_ratio):.3f}/"
+            f"{stage.get('max_drift_ratio', self.cfg.command_curriculum_max_drift_ratio):.3f} "
             f"terrain={float(self._curriculum_ema_terrain_level):.2f}/"
             f"{stage.get('min_terrain_level', self.cfg.command_curriculum_min_terrain_level):.2f}"
         )
@@ -500,6 +525,13 @@ class Go2RLGymCommandCfg(CommandTermCfg):
     """Minimum training iteration before competence-gated command stages can open."""
     command_curriculum_log_interval: int = 500
     """Print held competence-gated stages every N iterations. <=0 disables."""
+    command_curriculum_max_drift_ratio: float = 1e9
+    """Competence mode: max EMA lateral-drift ratio (|v_perp|/|cmd|) allowed before opening the next range.
+    Default 1e9 = OFF (go2/v5-v13 byte-identical); set tight (e.g. 0.15) to refuse advancing while veering."""
+    command_curriculum_speed_weighting: str = "mean"
+    """Competence-mode speed metric: 'mean' (flat average over moving envs, the original) or 'magnitude'
+    (command-magnitude-weighted, so fast commands dominate -> gates on the TOP of the range, not the easy
+    low-command average that hides the high-command tail)."""
     terrain_max_command_ranges: dict[str, dict] = {
         #### go2 terrains ####
         'wave':

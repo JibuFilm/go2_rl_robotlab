@@ -85,3 +85,14 @@ class A2V14MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
 
     experiment_name = "a2_v14_moe_cts"
     algorithm = RslRlMoeCtsV13AlgorithmCfg()
+
+
+@configclass
+class A2V15MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
+    """V15 runner = identical to V14 (V5 student + V13 gate-selection algo). V15's only change is the
+    env-side command-curriculum gate (A2V15EnvCfg); the algorithm is unchanged. Intended to WARM-START
+    the latest V14 weights (--resume --load_run <v14 dir> --checkpoint model_<N>.pt) so the policy carries
+    over while the command curriculum restarts at ±0.5 under the strict gate."""
+
+    experiment_name = "a2_v15_moe_cts"
+    algorithm = RslRlMoeCtsV13AlgorithmCfg()

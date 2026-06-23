@@ -146,6 +146,19 @@ gym.register(
     },
 )
 
+# V15 = V14 + an earned-only command-curriculum gate (magnitude-weighted speed ratio + lateral-drift gate
+# + 0.80 bar / 800-sample window). Fixes the V14 over-ramp (±0.5->±5.0 in ~130 iters, unearned). Warm-start
+# V14 weights; the command range restarts at ±0.5 and re-ramps only on real mastery. See env_cfg_v15.py.
+gym.register(
+    id="RobotLab-A2-V15-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v15:A2V15EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V15MoECTSRunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package
