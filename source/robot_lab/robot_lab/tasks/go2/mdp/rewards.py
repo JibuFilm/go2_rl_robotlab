@@ -1186,6 +1186,55 @@ def recover_and_progress(
     return progress * gate
 
 
+def terrain_traversal_progress(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg | None = None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    eps: float = 0.1,
+    min_span: float = 0.05,
+    max_slope: float = 1.0,
+    backtrack_cap: float = 0.5,
+    relief_threshold: float = 0.03,
+    relief_full: float = 0.12,
+) -> torch.Tensor:
+    """Goal-oriented TRAVERSAL credit (V16): pay committed along-terrain progress, SCALED UP where the
+    local terrain is hard.
+
+    The V14/V15 reward optimizes velocity-tracking PRECISION everywhere — including on stairs/obstacles,
+    where the correct behavior is to COMMIT and get over the feature even at imperfect speed. The terrain
+    curriculum only promotes on raw distance walked, so nothing explicitly credits CLEARING a hard
+    feature; eval bears this out (at iter 3600 the policy keeps upright on slope/obstacle but reaches
+    ZERO terrain goals, and falls on stairs). This term reuses the bounded along-terrain progress dial
+    (``track_lin_vel_terrain_dial``) and gates it by local height-scan relief (``_height_scan_relief``):
+    ~0 on flat (relief gate 0 -> V15 flat behavior is byte-unchanged), rising to full on stairs / obstacle
+    / slope. So on hard terrain "make progress through it" competes with velocity precision exactly where
+    we want traversal to LEAD and velocity tracking to be the SECONDARY concern.
+
+    Not farmable: progress is already clamped to [-backtrack_cap, |cmd|] and gated by the moving mask
+    inside the dial; the relief gate only scopes WHERE the credit is paid. ``backtrack_cap`` defaults to
+    0.5 (matching V12's dial) so retreating from a hard spot is mildly charged, not free. The relief
+    thresholds match ``_goal_relax_scale`` so "hard terrain" means the same thing across the reward set.
+    """
+    progress = track_lin_vel_terrain_dial(
+        env,
+        command_name,
+        sensor_cfg=sensor_cfg,
+        asset_cfg=asset_cfg,
+        eps=eps,
+        min_span=min_span,
+        max_slope=max_slope,
+        backtrack_cap=backtrack_cap,
+    )
+    relief = _height_scan_relief(env, sensor_cfg)
+    relief_gate = torch.clamp(
+        (relief - relief_threshold) / max(relief_full - relief_threshold, 1e-6),
+        min=0.0,
+        max=1.0,
+    )
+    return progress * relief_gate
+
+
 def lin_vel_lateral_l2(
     env: ManagerBasedRLEnv,
     command_name: str,

@@ -100,3 +100,15 @@ class A2V15MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
     # daemon benches each new model_<N>.pt, keeps the rolling best (deletes the superseded one), and
     # prunes non-record checkpoints — baseline stays resumable. V14 was 500; V15-only override.
     save_interval = 400
+
+
+@configclass
+class A2V16MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
+    """V16 runner = identical algo/policy to V14/V15 (V5 student + V13 gate-selection algo). V16's only
+    change is the env-side goal-oriented terrain-traversal reward (A2V16EnvCfg); the algorithm is
+    unchanged. WARM-START the latest V15 best (--resume --load_run <v15 dir> --checkpoint model_<N>.pt).
+    save_interval=400 to feed the same every-400 eval-curate loop."""
+
+    experiment_name = "a2_v16_moe_cts"
+    algorithm = RslRlMoeCtsV13AlgorithmCfg()
+    save_interval = 400

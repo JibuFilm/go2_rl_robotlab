@@ -159,6 +159,19 @@ gym.register(
     },
 )
 
+# V16 = V15 + a goal-oriented terrain-traversal reward (relief-gated along-terrain progress) so the policy
+# learns to CLEAR stairs/obstacles/slopes, not just track velocity until it tips. Flat behavior unchanged
+# (relief gate -> 0). Warm-start the latest V15 best. See env_cfg_v16.py.
+gym.register(
+    id="RobotLab-A2-V16-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v16:A2V16EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V16MoECTSRunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package
