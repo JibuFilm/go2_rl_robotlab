@@ -111,4 +111,9 @@ class A2V16MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
 
     experiment_name = "a2_v16_moe_cts"
     algorithm = RslRlMoeCtsV13AlgorithmCfg()
-    save_interval = 400
+    # DENSE cadence for the corridor-competition outer loop (the select-and-continue loop evals a range
+    # of ~20 checkpoints at Δ100 on the comprehensive course, 1 distinct seed each, fits the score-vs-
+    # iter trend, promotes the smoothed peak). Δ100 because the eval noise is seed-driven, not iteration-
+    # driven, so density + trend-fit smooths it cheaply. ~22 GB of checkpoints over a full run (fine on
+    # the 200 GB volume). See tools/sim/run_corridor_competition.py + COMPETITION_LOOP design.
+    save_interval = 100
