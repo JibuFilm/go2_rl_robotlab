@@ -1,0 +1,47 @@
+{
+  "schema": "patha_export_manifest_v1",
+  "run": "a2-patha-v16",
+  "iter": 6000,
+  "source_checkpoint": "/workspace/go2_rl_robotlab/logs/rsl_rl/a2_v16_moe_cts/2026-06-24_08-22-46_a2-patha-v16/model_6000.pt",
+  "dims": {
+    "num_single_obs": 557,
+    "history_len": 5,
+    "num_actor_obs": 2785,
+    "num_actions": 12,
+    "proprio_dim": 45
+  },
+  "command_limits": {
+    "vx_max": 3.0,
+    "vy_max": 0.9,
+    "wz_max": 1.5,
+    "source": "recipe-heuristic(a2-patha-v16)"
+  },
+  "exporter": {
+    "jit": "rsl_rl.utils.exporter_cts.export_cts_policy_as_jit (fork, REUSED)",
+    "onnx": "scripts/rsl_rl/utils.export_cts_policy_as_onnx (fork, REUSED)",
+    "deterministic_actor": "mean action; exporter_cts.py:85-87 returns actor MLP ([...,0,:] for state_dependent_std), no sampling",
+    "fork_root": "/workspace/go2_rl_robotlab"
+  },
+  "artifacts": {
+    "policy.pt": {
+      "path": "/workspace/runs/v16full/bundles/a2-patha-v16/snaps/iter_6000/policy.pt",
+      "sha256": "3d166a052d519640b42401313bb3577d95acbe2e47f20ce81f626f69aeec6228",
+      "bytes": 15972084,
+      "input_dim": 557,
+      "kind": "torchscript_cts_single_frame_internal_history"
+    },
+    "policy.onnx": {
+      "path": "/workspace/runs/v16full/bundles/a2-patha-v16/snaps/iter_6000/policy.onnx",
+      "sha256": "f591cff554bbe60a8dca2a3ef439ec9f1283878e753a6bd6b11a6766479aabcd",
+      "bytes": 15939383,
+      "input_dim": 2785,
+      "kind": "onnx_cts_term_major_history"
+    },
+    "model_6000.pt": {
+      "path": "/workspace/runs/v16full/bundles/a2-patha-v16/snaps/iter_6000/model_6000.pt",
+      "sha256": "2bceaaf36ccc236c3c15b3ff83c4f3b0d14318c46f275ffa32ed38b60aa2e684",
+      "bytes": 55059501,
+      "kind": "rsl_rl_checkpoint"
+    }
+  }
+}
