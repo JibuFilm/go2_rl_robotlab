@@ -172,6 +172,22 @@ gym.register(
     },
 )
 
+# V17 = W1 recipe surgery (de-MoE the head): the UNCHANGED V16 env paired with the clean stock-PPO
+# runner (OnPolicyRunner + plain actor-critic; no CTS latent, no gate/z losses, no teacher split).
+# The env/reward moat (V14 clean-slate, V15 command gate, V16 traversal reward) is untouched by
+# construction — this registration reuses env_cfg_v16:A2V16EnvCfg verbatim. From-scratch train
+# (NO V16 warm-start — its weights live in the MoE head). See rsl_rl_cfg.A2V17CleanPPORunnerCfg
+# + info/locomotion/W1_RECIPE_SURGERY.md (PerceptionGame).
+gym.register(
+    id="RobotLab-A2-V17-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_v16:A2V16EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2V17CleanPPORunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package

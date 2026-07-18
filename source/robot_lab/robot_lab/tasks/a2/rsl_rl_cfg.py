@@ -9,6 +9,7 @@ from isaaclab.utils import configclass
 
 from robot_lab.tasks.go2.rsl_rl_cfg import (
     MoECTSRunnerCfg,
+    PPORunnerCfg,
     RslRlMoeCtsActorCriticCfg,
     RslRlMoeCtsAlgorithmCfg,
 )
@@ -116,4 +117,32 @@ class A2V16MoECTSRunnerCfg(A2V5MoECTSRunnerCfg):
     # iter trend, promotes the smoothed peak). Δ100 because the eval noise is seed-driven, not iteration-
     # driven, so density + trend-fit smooths it cheaply. ~22 GB of checkpoints over a full run (fine on
     # the 200 GB volume). See tools/sim/run_corridor_competition.py + COMPETITION_LOOP design.
+    save_interval = 100
+
+
+@configclass
+class A2V17CleanPPORunnerCfg(PPORunnerCfg):
+    """V17 (W1 recipe surgery): the de-MoE'd head — stock OnPolicyRunner + plain gradiented
+    actor-critic on the UNCHANGED V16 env (the env/reward moat is untouched by construction; the
+    registration pairs this with env_cfg_v16:A2V16EnvCfg as-is). Inherits go2 PPORunnerCfg
+    byte-for-byte: its PPO hyperparams are identical to the MoE-CTS cfg (lr 1e-3 adaptive, clip 0.2,
+    entropy 0.01, gamma 0.99, lam 0.95, 5 epochs, 4 minibatches, grad-norm 1.0) — the MoE cfg differs
+    only by the encoder losses + student lr + teacher_env_ratio + class names, all absent here.
+
+    Deliberate differences vs V16 (write them in the run log, they are NOT bugs):
+      * 100% of envs collect on-policy for the actor (no teacher_env_ratio=0.75 split).
+      * The actor consumes the FULL `policy` obs group directly (2785 = [45 proprio + 512 dome
+        ranges] x 5-frame history) — no latent bottleneck; the raw range block reaching the actor
+        is the accepted Phase-2-encoder-deferred trade. The critic consumes the privileged `critic`
+        group (263, incl. height_scan 187). The `single_obs` group (557) goes unused (CTS-only).
+      * No gate/latent/z-loss channels in logs — expected, not a logging bug.
+
+    NO V16 warm-start (its weights live in the MoE head) — from-scratch on the recipe."""
+
+    experiment_name = "a2_v17_clean_ppo"
+    # Pinned explicitly (train.py dispatches on it); the isaaclab default is the same but the go2
+    # template leaves it implicit. Stock RslRlPpoActorCriticCfg (512/256/128, elu, no obs-norm —
+    # matching V16's choices) + stock RslRlPpoAlgorithmCfg inherited from PPORunnerCfg (go2).
+    class_name = "OnPolicyRunner"
+    # DENSE cadence for the corridor-competition outer loop, same rationale as V16.
     save_interval = 100
