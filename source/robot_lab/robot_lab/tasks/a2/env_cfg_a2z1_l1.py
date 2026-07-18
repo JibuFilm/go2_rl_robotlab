@@ -34,7 +34,24 @@ from robot_lab.tasks.a2.env_cfg_v16 import A2V16EnvCfg
 
 # Arm joint selectors (URDF names audited against every leg regex at generation time).
 ARM_JOINT_EXPR = ["z1_joint[1-6]"]          # the 6 arm DOF; gripper excluded from pose DR
+ARM_ALL_JOINT_EXPR = ["z1_joint[1-6]", "z1_jointGripper"]   # all 7 (target-hold set)
 ARM_LINK_EXPR = "z1_.*"                      # all 8 arm links
+
+
+def hold_arm_position_targets(env, env_ids, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+    """Write the arm joints' position TARGETS to their current (post-jitter) positions.
+
+    THE fix for the review-found blocker (2026-07-18): IsaacLab's ``joint_pos_target``
+    buffer is written ONLY by action terms — and ours is pinned to the 12 legs — so
+    without this the arm's kp-1000 servos drive from stow to the ALL-ZERO pose (which
+    sits ON joint2/joint3's limits) within the first fraction of every episode.
+    ``reset_joints_by_offset`` writes joint STATE, never targets. Runs as a reset event
+    AFTER the arm-pose jitter (dict order); targets persist for the whole episode
+    because nothing else writes the arm's target rows.
+    """
+    asset = env.scene[asset_cfg.name]
+    targets = asset.data.joint_pos[env_ids][:, asset_cfg.joint_ids]
+    asset.set_joint_position_target(targets, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 @configclass
@@ -58,6 +75,8 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
         # ---- arm-pose DR: jitter the servo-held stow at reset (W2-09). Offsets, not
         # scales — half the stow angles are 0 and scale-DR would never move them.
         # ±0.15 rad keeps the pose family stow-like; wider pose work is W3-L2's.
+        # (Known asymmetry: reset_joints_by_offset clamps to SOFT limits, so joint3 —
+        # stow −0.261, soft upper −0.144 — samples +0.117 max instead of +0.15.)
         self.events.reset_arm_pose = EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
@@ -65,6 +84,16 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
                 "asset_cfg": SceneEntityCfg("robot", joint_names=ARM_JOINT_EXPR),
                 "position_range": (-0.15, 0.15),
                 "velocity_range": (0.0, 0.0),
+            },
+        )
+
+        # ---- arm target hold (MUST follow reset_arm_pose — dict order is call order):
+        # writes the servo TARGETS to the jittered pose; see hold_arm_position_targets.
+        self.events.hold_arm_targets = EventTerm(
+            func=hold_arm_position_targets,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=ARM_ALL_JOINT_EXPR),
             },
         )
 

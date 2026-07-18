@@ -716,7 +716,7 @@
       <inertia ixx="0.000531375" ixy="0" ixz="0" iyy="0.000415207" iyz="0" izz="0.000378658" />
     </inertial>
     <visual>
-      <origin xyz="-0.00552075932 1.86294924e-07 0.021599178" rpy="-3.00227448e-05 -1.49598379 -3.14159265" />
+      <origin xyz="4.68375339e-17 -1.61465656e-21 -1.83880688e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_Link00.stl" />
       </geometry>
@@ -738,7 +738,7 @@
       <inertia ixx="0.00128328" ixy="0" ixz="0" iyy="0.000839362" iyz="0" izz="0.000719308" />
     </inertial>
     <visual>
-      <origin xyz="-1.14490562e-08 1.59177099e-08 0.0229869026" rpy="1.57079633 -1.57079633 0" />
+      <origin xyz="5.95570041e-23 -8.60267837e-23 -1.2490009e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_Link01.stl" />
       </geometry>
@@ -762,7 +762,7 @@
       <inertia ixx="0.0246612" ixy="0" ixz="0" iyy="0.0243113" iyz="0" izz="0.00100468" />
     </inertial>
     <visual>
-      <origin xyz="-0.120557181 0.00420746326 -1.98671855e-06" rpy="-1.39235208 -1.57069594 -1.80389456" />
+      <origin xyz="8.8817842e-16 -3.12250226e-17 6.70130116e-18" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_Link02.stl" />
       </geometry>
@@ -804,7 +804,7 @@
       <inertia ixx="0.00954365" ixy="0" ixz="0" iyy="0.00938711" iyz="0" izz="0.000558432" />
     </inertial>
     <visual>
-      <origin xyz="0.101349854 -0.00529206058 0.0345493074" rpy="1.33234168 0.0616156447 1.56742688" />
+      <origin xyz="-4.57966998e-16 3.12250226e-17 -1.5959456e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_Link03.stl" />
       </geometry>
@@ -840,7 +840,7 @@
       <inertia ixx="0.000981656" ixy="0" ixz="0" iyy="0.00094053" iyz="0" izz="0.000302655" />
     </inertial>
     <visual>
-      <origin xyz="0.051024634 0.0070503078 -0.00527511655" rpy="1.65425472 0.074580297 1.22526565" />
+      <origin xyz="-2.91433544e-16 -4.51028104e-17 2.94902991e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_Link04.stl" />
       </geometry>
@@ -870,7 +870,7 @@
       <inertia ixx="0.000558961" ixy="0" ixz="0" iyy="0.000547317" iyz="0" izz="0.000167332" />
     </inertial>
     <visual>
-      <origin xyz="0.022277725 3.54728046e-07 0.0134303508" rpy="-3.14157005 -0.941108285 9.60960719e-17" />
+      <origin xyz="-1.83880688e-16 -2.80579664e-21 -1.11022302e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_Link05.stl" />
       </geometry>
@@ -894,7 +894,7 @@
       <inertia ixx="0.00018333" ixy="0" ixz="0" iyy="0.000147464" iyz="0" izz="0.000146786" />
     </inertial>
     <visual>
-      <origin xyz="0.0246878606 4.71713096e-05 1.94882961e-05" rpy="1.96325936 0.00665716676 -0.0160664881" />
+      <origin xyz="-6.9388939e-17 -8.13151629e-20 5.42101086e-20" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_Link06.stl" />
       </geometry>
@@ -909,7 +909,7 @@
       </geometry>
     </collision>
     <visual>
-      <origin xyz="0.104710546 -0.00199015287 -0.00665339438" rpy="2.87378173 -1.31386576 0.284314248" />
+      <origin xyz="0.051 1.60461922e-17 5.46437895e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperStator.stl" />
       </geometry>
@@ -918,37 +918,37 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0.185453882 -6.51772472e-20 -0.0191151062" rpy="-1.57079633 -1.12597518 3.14159265" />
+      <origin xyz="0.051 3.3703774e-34 1.04083409e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperStator_col_1.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.162722194 -7.95595397e-17 -0.0240697355" rpy="-1.57079633 -0.830487151 3.14159265" />
+      <origin xyz="0.051 4.19082356e-31 1.28369537e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperStator_col_2.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.141405425 1.53984367e-11 -0.0271148796" rpy="-1.57079633 -1.26907123 3.14159265" />
+      <origin xyz="0.051 -9.04728795e-26 1.63064007e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperStator_col_3.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.105308901 -3.59117544e-19 -0.023788626" rpy="1.57079633 -1.44899309 0" />
+      <origin xyz="0.051 1.92592994e-33 1.31838984e-16" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperStator_col_4.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.0999999626 -2.09608551e-17 -1.57241269e-12" rpy="1.57079633 -0 0" />
+      <origin xyz="0.051 5.54667824e-32 4.03896783e-27" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperStator_col_5.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.07306406 2.68767489e-10 -2.06432248e-10" rpy="1.57079633 -0 1.57079633" />
+      <origin xyz="0.051 -1.44756607e-24 1.08567455e-24" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperStator_col_6.stl" />
       </geometry>
@@ -956,13 +956,13 @@
     <collision>
       <origin xyz="0.186 -0.015 -0.0125" rpy="0 -0 0" />
       <geometry>
-        <sphere radius="0.014" />
+        <box size="0.028 0.03 0.008" />
       </geometry>
     </collision>
     <collision>
       <origin xyz="0.186 0.015 -0.0125" rpy="0 -0 0" />
       <geometry>
-        <sphere radius="0.014" />
+        <box size="0.028 0.03 0.008" />
       </geometry>
     </collision>
   </link>
@@ -981,7 +981,7 @@
       <inertia ixx="0.000359044" ixy="0" ixz="0" iyy="0.000270888" iyz="0" izz="0.000172378" />
     </inertial>
     <visual>
-      <origin xyz="0.0373548423 6.85358273e-06 0.00637800762" rpy="-0.0157722939 -1.535198 -3.13364039" />
+      <origin xyz="-2.98372438e-16 -1.42301535e-19 -5.2909066e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperMover.stl" />
       </geometry>
@@ -990,31 +990,31 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0.085045357 -2.56471231e-10 0.00257880448" rpy="1.57079633 -0.928078138 0" />
+      <origin xyz="-4.4408921e-16 1.3441685e-24 -2.21177243e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperMover_col_1.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.0630984766 -2.57101783e-11 0.00908551225" rpy="1.57079633 -0.344316887 0" />
+      <origin xyz="-1.80411242e-16 7.10858339e-26 -2.77555756e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperMover_col_2.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.0425687901 9.39325993e-10 0.0127926108" rpy="1.57079633 0.00762150419 0" />
+      <origin xyz="-1.2490009e-16 -2.48154184e-24 -3.46944695e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperMover_col_3.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.00624792805 0.0349999607 0.00374693801" rpy="1.02454538 -0 1.57079633" />
+      <origin xyz="-3.46944695e-17 -1.80411242e-16 -2.03830008e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperMover_col_4.stl" />
       </geometry>
     </collision>
     <collision>
-      <origin xyz="0.00624792801 -0.035749965 0.00374693803" rpy="1.02454538 -0 1.57079633" />
+      <origin xyz="-3.55618313e-17 2.22044605e-16 -2.25514052e-17" rpy="0 -0 0" />
       <geometry>
         <mesh filename="package://a2/meshes/z1_GripperMover_col_5.stl" />
       </geometry>
@@ -1022,13 +1022,13 @@
     <collision>
       <origin xyz="0.086 -0.015 -0.0055" rpy="0 -0 0" />
       <geometry>
-        <sphere radius="0.014" />
+        <box size="0.028 0.03 0.008" />
       </geometry>
     </collision>
     <collision>
       <origin xyz="0.086 0.015 -0.0055" rpy="0 -0 0" />
       <geometry>
-        <sphere radius="0.014" />
+        <box size="0.028 0.03 0.008" />
       </geometry>
     </collision>
   </link>
@@ -1041,7 +1041,7 @@
     <dynamics damping="1" friction="1" />
   </joint>
   <joint name="z1_mount_joint" type="fixed" dont_collapse="true">
-    <origin xyz="-0.1 0 0.117" rpy="0 0 0" />
+    <origin xyz="-0.1 0 0.117" rpy="0 -0 0" />
     <parent link="base_link" />
     <child link="z1_link00" />
   </joint>

@@ -63,8 +63,9 @@ ARM_JOINTS = {
     "z1_jointGripper": ((0, 1, 0), -1.51844, 0.0, 30.0),
 }
 MOUNT_POS = (-0.10, 0.0, 0.117)   # PLACEHOLDER (Jibu eyeball gate) — single source a2z1_mjcf.py
+# gripper -0.1 (review 2026-07-18: 0.0 sits ON the hard limit + outside soft limits)
 STOW = {"z1_joint1": 0.0, "z1_joint2": 0.785, "z1_joint3": -0.261,
-        "z1_joint4": -0.523, "z1_joint5": 0.0, "z1_joint6": 0.0, "z1_jointGripper": 0.0}
+        "z1_joint4": -0.523, "z1_joint5": 0.0, "z1_joint6": 0.0, "z1_jointGripper": -0.1}
 FORBIDDEN_FULLMATCH = (r".*_hip_joint", r".*_thigh_joint", r".*_calf_joint",
                        r".*_foot", r".*_thigh", r".*_calf", r"base_link")
 
@@ -120,6 +121,22 @@ def test_naming_audit():
     check("no z1 name collides with leg selectors", not bad, str(bad))
 
 
+def test_gripper_pad_boxes():
+    """Review 2026-07-18 regression: the 4 gripper contact pads are BOXES (mjGEOM 6 was
+    mislabeled as sphere once — pads emitted as r=14mm spheres instead of 8mm-thick boxes)."""
+    root = ET.parse(URDF).getroot()
+    boxes = []
+    for l in root.iter("link"):
+        if (l.get("name") or "") in ("z1_link06", "z1_gripperMover"):
+            for col in l.findall("collision"):
+                b = col.find("geometry/box")
+                if b is not None:
+                    boxes.append(tuple(round(float(x), 4) for x in b.get("size").split()))
+    check("4 gripper-pad boxes", len(boxes) == 4, str(boxes))
+    check("pad box full-extents 0.028x0.030x0.008",
+          all(b == (0.028, 0.030, 0.008) for b in boxes), str(boxes))
+
+
 def test_meshes_exist():
     root = ET.parse(URDF).getroot()
     missing = []
@@ -137,11 +154,13 @@ def test_cfg_rows():
     u = UNITREE.read_text()
     check("A2Z1_CFG_UNITREE exists", "A2Z1_CFG_UNITREE = UnitreeArticulationCfg" in u)
     check("a2z1 asset path", "a2/urdf/a2z1.urdf" in u)
-    check("arm_main servo hold 1000/100 ±30",
-          re.search(r'"arm_main": DCMotorCfg\((?:[^)]*\n)*?[^)]*stiffness=1000\.0', u) is not None
+    check("arm_main IMPLICIT servo hold 1000/100 ±30 (flat clamp, review 2026-07-18)",
+          re.search(r'"arm_main": ImplicitActuatorCfg\((?:[^)]*\n)*?[^)]*stiffness=1000\.0', u) is not None
           and '"arm_main"' in u and "effort_limit=30.0" in u)
-    check("arm_shoulder 1500/150 ±60",
-          re.search(r'"arm_shoulder": DCMotorCfg\((?:[^)]*\n)*?[^)]*stiffness=1500\.0', u) is not None)
+    check("arm_shoulder IMPLICIT 1500/150 ±60",
+          re.search(r'"arm_shoulder": ImplicitActuatorCfg\((?:[^)]*\n)*?[^)]*stiffness=1500\.0', u) is not None)
+    check("arm groups leave friction unset (URDF frictionloss survives import)",
+          re.search(r'"arm_(main|shoulder)": ImplicitActuatorCfg\((?:[^)]*\n)*?[^)]*friction=', u) is None)
     for jn, val in STOW.items():
         check(f"stow {jn}={val}", re.search(rf'"{jn}":\s*{re.escape(str(val))}', u) is not None)
 
@@ -151,6 +170,11 @@ def test_cfg_rows():
     check("arm-pose DR term", "reset_arm_pose" in e and "reset_joints_by_offset" in e)
     check("payload DR at gripper", "randomize_arm_payload" in e and "z1_gripperMover" in e)
     check("arm contact penalty", "arm_undesired_contacts" in e)
+    # review 2026-07-18 blocker: without this, arm targets stay 0 and the servos leave stow
+    check("arm target-hold event present + ordered after jitter",
+          "hold_arm_position_targets" in e
+          and e.find("hold_arm_targets") > e.find("reset_arm_pose")
+          and "set_joint_position_target" in e)
 
     r = RSL_CFG.read_text()
     check("A2Z1L1PPORunnerCfg(A2V17CleanPPORunnerCfg)",
@@ -168,6 +192,7 @@ def test_all():
     test_urdf_structure()
     test_arm_goldens()
     test_naming_audit()
+    test_gripper_pad_boxes()
     test_meshes_exist()
     test_cfg_rows()
     bad = [(n, d) for n, ok, d in _results if not ok]

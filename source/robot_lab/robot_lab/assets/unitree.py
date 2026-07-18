@@ -7,7 +7,7 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 
 import os
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg
+from isaaclab.actuators import DCMotorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import configclass
 
@@ -306,7 +306,10 @@ A2Z1_CFG_UNITREE = UnitreeArticulationCfg(
             "z1_joint4": -0.523,
             "z1_joint5": 0.0,
             "z1_joint6": 0.0,
-            "z1_jointGripper": 0.0,
+            # -0.1 (slightly open), NOT the keyframe's 0.0: 0.0 IS the hard upper limit
+            # (range -1.518..0) and sits outside the 0.9 soft-limit band — an epsilon
+            # from a construction ValueError. Single source: a2z1_mjcf stow_qpos.
+            "z1_jointGripper": -0.1,
         },
         joint_vel={".*": 0.0},
     ),
@@ -343,25 +346,29 @@ A2Z1_CFG_UNITREE = UnitreeArticulationCfg(
         ),
         # arm servo-hold — two groups because joint2 (shoulder pitch) has its own
         # menagerie override (kp1500/kd150/±60) the other six don't share.
-        "arm_main": DCMotorCfg(
+        # IMPLICIT (not DCMotor) per review 2026-07-18: the menagerie <general> servo is
+        # a FLAT torque clip at any speed; DCMotor's torque-speed derating (scaled by the
+        # placeholder velocity limit) would train every transient against a WEAKER hold
+        # than deploy (zero forward torque at |v|>=π). ImplicitActuatorCfg = PhysX drive
+        # PD + flat effort clamp — the matching semantic class. velocity_limit is a
+        # velocity CAP here (placeholder π), not a torque derate. friction/armature
+        # deliberately UNSET: an explicit friction=0.0 clobbers the URDF-converted
+        # frictionloss (1 N·m, menagerie-transcribed) at import. Residual divergence
+        # (documented, W2_A2Z1_TASK.md): the arm's viscous joint damping 1–2 N·m·s has
+        # no PhysX home — ~1% of the kd 100–150 drive damping, negligible.
+        "arm_main": ImplicitActuatorCfg(
             joint_names_expr=["z1_joint1", "z1_joint[3-6]", "z1_jointGripper"],
             effort_limit=30.0,
-            saturation_effort=30.0,
-            velocity_limit=3.1416,   # PLACEHOLDER — see header PROVENANCE note
+            velocity_limit=3.1416,   # PLACEHOLDER cap — see header PROVENANCE note
             stiffness=1000.0,
             damping=100.0,
-            armature=0.0,
-            friction=0.0,
         ),
-        "arm_shoulder": DCMotorCfg(
+        "arm_shoulder": ImplicitActuatorCfg(
             joint_names_expr=["z1_joint2"],
             effort_limit=60.0,
-            saturation_effort=60.0,
-            velocity_limit=3.1416,   # PLACEHOLDER — see header PROVENANCE note
+            velocity_limit=3.1416,   # PLACEHOLDER cap — see header PROVENANCE note
             stiffness=1500.0,
             damping=150.0,
-            armature=0.0,
-            friction=0.0,
         ),
     },
     # fmt: off
