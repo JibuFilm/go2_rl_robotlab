@@ -207,6 +207,35 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
+
+    # TERRAIN CURRICULUM PERSISTENCE (PerceptionGame fix 2026-06-24) — mirrors the common_step_counter
+    # resume fix below. terrain_levels lives on the ENV's TerrainImporter and is re-randomized every
+    # process launch (torch.randint(0, max_init_terrain_level+1); mean ~2.5 with max_init=5), so each
+    # resume threw away the EARNED terrain ladder and re-climbed from scratch on already-competent
+    # weights (~300 wasted iters/resume — and the competition loop resumes every round). Fix: snapshot
+    # terrain_levels next to each checkpoint (model_<it>.pt -> model_<it>_terrain.pt) and restore it on
+    # resume, repositioning env origins to the restored rows (keeping each env's current column/type).
+    def _terrain_sidecar(ckpt_path):
+        return ckpt_path[:-3] + "_terrain.pt" if ckpt_path.endswith(".pt") else ckpt_path + ".terrain.pt"
+
+    def _get_terrain():
+        t = getattr(getattr(env.unwrapped, "scene", None), "terrain", None)
+        if t is None or getattr(t, "terrain_origins", None) is None or getattr(t, "terrain_levels", None) is None:
+            return None  # not a curriculum/generator terrain (e.g. plane) — nothing to persist
+        return t
+
+    _orig_runner_save = runner.save
+    def _save_with_terrain(path, *a, **k):
+        out = _orig_runner_save(path, *a, **k)
+        try:
+            t = _get_terrain()
+            if t is not None:
+                torch.save(t.terrain_levels.detach().cpu(), _terrain_sidecar(path))
+        except Exception as _e:
+            print(f"[WARN]: terrain_levels snapshot failed for '{path}': {_e!r}")
+        return out
+    runner.save = _save_with_terrain
+
     # load the checkpoint
     if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
@@ -235,6 +264,26 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 print(f"[WARN]: could not restore common_step_counter from loaded runner state "
                       f"for '{resume_path}': {_e!r} "
                       f"— curricula will reset to iter 0 (legacy behavior)")
+
+            # restore the EARNED terrain-curriculum ladder snapshotted next to the checkpoint (see save
+            # hook above) so a resume continues from the achieved difficulty instead of re-climbing 2.5.
+            try:
+                _t = _get_terrain()
+                _tl_path = _terrain_sidecar(resume_path)
+                if _t is not None and os.path.exists(_tl_path):
+                    _tl = torch.load(_tl_path, map_location=_t.terrain_levels.device)
+                    if tuple(_tl.shape) == tuple(_t.terrain_levels.shape):
+                        _t.terrain_levels[:] = _tl.to(_t.terrain_levels.device).clamp_(0, _t.max_terrain_level - 1)
+                        _t.env_origins[:] = _t.terrain_origins[_t.terrain_levels, _t.terrain_types]
+                        print(f"[INFO]: resume terrain continuity — restored terrain_levels "
+                              f"(mean {_t.terrain_levels.float().mean():.2f}) from {_tl_path}")
+                    else:
+                        print(f"[WARN]: terrain_levels sidecar shape {tuple(_tl.shape)} != "
+                              f"env {tuple(_t.terrain_levels.shape)} — terrain curriculum resets (legacy)")
+                else:
+                    print(f"[INFO]: no terrain_levels sidecar at {_tl_path} — terrain curriculum starts fresh")
+            except Exception as _e:
+                print(f"[WARN]: could not restore terrain_levels for '{resume_path}': {_e!r} — terrain resets")
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
