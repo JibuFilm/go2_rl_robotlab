@@ -146,3 +146,13 @@ class A2V17CleanPPORunnerCfg(PPORunnerCfg):
     class_name = "OnPolicyRunner"
     # DENSE cadence for the corridor-competition outer loop, same rationale as V16.
     save_interval = 100
+
+
+@configclass
+class A2Z1L1PPORunnerCfg(A2V17CleanPPORunnerCfg):
+    """W3-L1 armed walker on the W1 clean recipe (V17 smoke PASSED 5/5, 2026-07-18).
+    The A2Z1-L1 env keeps the exact V16/V17 obs+action contract (12 leg actions; every
+    term name-pinned, the arm leaks nowhere), so the whole runner cfg inherits —
+    only the experiment name forks the run dir."""
+
+    experiment_name = "a2z1_l1_ppo"

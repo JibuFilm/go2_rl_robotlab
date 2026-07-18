@@ -254,3 +254,122 @@ A2_CFG_UNITREE = UnitreeArticulationCfg(
     ],
     # fmt: on
 )
+
+
+# =============================================================================
+# Unitree A2 + Z1 arm (W2, locomotion strand) — the ARMED body for the A2Z1 task
+# family (L1 armed walker: 12 leg actions, arm = servo-held env body).
+#
+# A copy of A2_CFG_UNITREE with ONLY the arm rows added. Sources (all transcribed,
+# never invented — PerceptionGame append_a2z1_urdf.py generates the URDF
+# programmatically from the COMPILED menagerie z1_gripper.xml and parity-checks
+# it; masses/inertials/joint origins/axes/ranges/efforts cannot drift):
+#   * URDF: resources/a2/urdf/a2z1.urdf = sensorized a2.urdf + the 8-link Z1 chain
+#     (z1_link00..06 + z1_gripperMover, 4.695 kg) fixed-mounted mid-rear roof at
+#     (-0.10, 0, 0.117) base_link frame — MOUNT IS A PLACEHOLDER (Jibu's eyeball
+#     call 2026-07-12, ADM addendum; sign-off gate before lock). The mount joint
+#     carries dont_collapse="true" so z1_link00 survives merge_fixed_joints
+#     (clean arm-contact accounting; MuJoCo nbody parity).
+#   * Arm hold gains kp 1000/1500, kd 100/150 + efforts 30/60 N·m:
+#     # PROVENANCE: TRANSCRIBED from menagerie z1_gripper.xml <general> servo
+#     defaults (class z1: gainprm 1000, biasprm -1000/-100, forcerange ±30;
+#     joint2 override 1500/150/±60) — the same servos the MuJoCo-side a2z1
+#     artifact keeps, so teacher and deploy hold the arm identically.
+#   * velocity_limit 3.1416 rad/s:
+#     # PROVENANCE: PLACEHOLDER (datasheet-class π rad/s; menagerie MJCF carries
+#     none). Re-derive per A2_CAPABILITY_SSOT before any arm capability claim.
+#   * Stow pose = menagerie 'home' keyframe (0, 0.785, -0.261, -0.523, 0, 0; grip 0)
+#     # PROVENANCE: TRANSCRIBED from a2z1_mjcf.DEFAULT_CONFIG stow_qpos (single
+#     source with the MuJoCo artifact's 'stow' keyframe). Part of the same
+#     eyeball gate as the mount (semi-extended, +0.61 m above base at stow).
+#   * armature 0.0 for the arm (menagerie authors none; the legs keep 0.03).
+# joint_sdk_names stays the 12-leg deploy list — the arm is not in the SDK
+# stream contract (L1); extend only when the deploy driver streams arm state.
+# =============================================================================
+A2Z1_CFG_UNITREE = UnitreeArticulationCfg(
+    spawn=UnitreeUrdfFileCfg(
+        asset_path=f"{ISAACLAB_ASSETS_DATA_DIR}/a2/urdf/a2z1.urdf",
+        merge_fixed_joints=True,  # OS0 folds into base_link; z1_link00 survives via dont_collapse
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.55),
+        joint_pos={
+            # legs: identical to A2_CFG_UNITREE (V14 corrected stance)
+            ".*L_hip_joint": -0.1,
+            ".*R_hip_joint": 0.1,
+            ".*_thigh_joint": 0.8,
+            ".*_calf_joint": -1.05,
+            # arm: stow (menagerie 'home'; see PROVENANCE above)
+            "z1_joint1": 0.0,
+            "z1_joint2": 0.785,
+            "z1_joint3": -0.261,
+            "z1_joint4": -0.523,
+            "z1_joint5": 0.0,
+            "z1_joint6": 0.0,
+            "z1_jointGripper": 0.0,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    actuators={
+        "hip": DCMotorCfg(
+            joint_names_expr=[".*_hip_joint"],
+            effort_limit=120.0,
+            saturation_effort=120.0,
+            velocity_limit=22.0,
+            stiffness=100.0,
+            damping=4.0,
+            armature=0.03,
+            friction=0.0,
+        ),
+        "thigh": DCMotorCfg(
+            joint_names_expr=[".*_thigh_joint"],
+            effort_limit=120.0,
+            saturation_effort=120.0,
+            velocity_limit=22.0,
+            stiffness=100.0,
+            damping=4.0,
+            armature=0.03,
+            friction=0.0,
+        ),
+        "calf": DCMotorCfg(
+            joint_names_expr=[".*_calf_joint"],
+            effort_limit=180.0,
+            saturation_effort=180.0,
+            velocity_limit=14.6667,
+            stiffness=150.0,
+            damping=6.0,
+            armature=0.03,
+            friction=0.0,
+        ),
+        # arm servo-hold — two groups because joint2 (shoulder pitch) has its own
+        # menagerie override (kp1500/kd150/±60) the other six don't share.
+        "arm_main": DCMotorCfg(
+            joint_names_expr=["z1_joint1", "z1_joint[3-6]", "z1_jointGripper"],
+            effort_limit=30.0,
+            saturation_effort=30.0,
+            velocity_limit=3.1416,   # PLACEHOLDER — see header PROVENANCE note
+            stiffness=1000.0,
+            damping=100.0,
+            armature=0.0,
+            friction=0.0,
+        ),
+        "arm_shoulder": DCMotorCfg(
+            joint_names_expr=["z1_joint2"],
+            effort_limit=60.0,
+            saturation_effort=60.0,
+            velocity_limit=3.1416,   # PLACEHOLDER — see header PROVENANCE note
+            stiffness=1500.0,
+            damping=150.0,
+            armature=0.0,
+            friction=0.0,
+        ),
+    },
+    # fmt: off
+    joint_sdk_names=[
+        "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+        "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+        "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
+        "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint"
+    ],
+    # fmt: on
+)

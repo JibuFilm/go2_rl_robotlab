@@ -188,6 +188,22 @@ gym.register(
     },
 )
 
+# A2Z1-L1 = the ARMED WALKER (W2/W3-L1): the UNCHANGED V16 moat on the armed body
+# (sensorized A2 + Z1 servo-held at stow; resources/a2/urdf/a2z1.urdf, mount = eyeball-gate
+# placeholder) + arm DR (stow-pose jitter, EE payload 0–0.5 kg, arm-contact penalty; the ONE
+# mandatory inherited-event fix pins reset_robot_joints to the 12 legs). Same 12-act/2785-obs
+# contract as V16/V17 → trains on the W1 clean-PPO runner (smoke PASSED 2026-07-18).
+# From-scratch train (paid gate #2, held). See env_cfg_a2z1_l1.py + PerceptionGame W2 docs.
+gym.register(
+    id="RobotLab-A2Z1-L1-v0",
+    entry_point="robot_lab.tasks.go2.env.go2_env:Go2Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.env_cfg_a2z1_l1:A2Z1L1EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.rsl_rl_cfg:A2Z1L1PPORunnerCfg",
+    },
+)
+
 # The blacklist is used to prevent importing configs from sub-packages
 _BLACKLIST_PKGS = ["utils"]
 # Import all configs in this package
