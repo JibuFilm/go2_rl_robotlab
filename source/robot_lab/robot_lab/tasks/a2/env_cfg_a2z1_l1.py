@@ -139,6 +139,41 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
             },
         )
 
+        # ---- L1 PHASE-IN deltas (r1 post-mortem, 2026-07-19 — run a2z1-l1-r1 collapsed into
+        # the die-fast basin: 100% base_fall at ~19 steps, ep length SHRINKING, per-episode
+        # reward improving by dying sooner. The armless V17 smoke entered the same basin at
+        # iters 49-98 and escaped by 147; the armed body could not. Paired MuJoCo A/B
+        # (64 spawns, servo-hold): the V12-A5 spawn severity dooms ~60% of episodes AT BIRTH
+        # for BOTH bodies — those spawns were designed to teach recovery to a COMPETENT
+        # V12 walker, not for from-scratch armed learning.)
+        # (1) moderate bad-init spawns: survivable variety, not recovery training. The full
+        #     A5 severity returns with the W3 get-up teacher, where it belongs.
+        self.events.reset_base.params = {
+            "pose_range": {
+                "x": (-0.5, 0.5),
+                "y": (-0.5, 0.5),
+                "z": (0.0, 0.1),
+                "roll": (-0.15, 0.15),
+                "pitch": (-0.15, 0.15),
+                "yaw": (-3.14, 3.14),
+            },
+            "velocity_range": {
+                "x": (-0.15, 0.15),
+                "y": (-0.15, 0.15),
+                "z": (-0.15, 0.15),
+                "roll": (-0.25, 0.25),
+                "pitch": (-0.25, 0.25),
+                "yaw": (-0.25, 0.25),
+            },
+        }
+        # (2) termination penalty: one-time −5 on death (is_terminated excludes time-outs),
+        #     scaled to the per-episode reward magnitude (~22 at maturity) — kills the
+        #     die-fast gradient early, fades to irrelevance as falls become rare.
+        self.rewards.termination_penalty = RewTerm(
+            func=mdp.is_terminated,
+            weight=-5.0,
+        )
+
         # Inherited events that now ALSO cover the arm — kept deliberately (recon-audited):
         #  * randomize_actuator_gains (joint_names '.*'): ±10% arm servo-gain DR — desirable.
         #  * randomize_rigid_body_mass_others ('^(?!.*base).*'): ±10% per-link arm mass DR.

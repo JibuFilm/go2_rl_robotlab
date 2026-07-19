@@ -175,6 +175,11 @@ def test_cfg_rows():
           "hold_arm_position_targets" in e
           and e.find("hold_arm_targets") > e.find("reset_arm_pose")
           and "set_joint_position_target" in e)
+    # r1 post-mortem deltas (2026-07-19): die-fast basin fixes
+    check("L1 phase-in spawn moderation (roll/pitch ±0.15)",
+          '"roll": (-0.15, 0.15)' in e and '"z": (0.0, 0.1)' in e)
+    check("termination penalty present (−5, excludes time-outs)",
+          "termination_penalty" in e and "is_terminated" in e and "weight=-5.0" in e)
 
     r = RSL_CFG.read_text()
     check("A2Z1L1PPORunnerCfg(A2V17CleanPPORunnerCfg)",
