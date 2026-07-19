@@ -266,6 +266,42 @@ ok("dome_ranges measures from the composed site origin",
    "origin_w = s.data.pos_w + quat_apply" in mdp_text
    and "site_offsets_b" in mdp_text)
 
+# ---------------------------------------- [8] A2Z1 armed-occluder variant (W2, 2026-07-18)
+A2Z1_GEOMS = DATA / "a3_body_geoms_a2z1_v1.json"
+ok("a2z1 occluder variant exists", A2Z1_GEOMS.exists())
+if A2Z1_GEOMS.exists():
+    gz = json.loads(A2Z1_GEOMS.read_text())
+    ok("a2z1 variant schema + robot key",
+       gz.get("schema") == "a3_body_geoms_v1" and gz.get("robot") == "a2z1")
+    arm_geoms = [g for g in gz["geoms"] if g["body"].startswith("z1_")]
+    ok("all 23 Z1 collision geoms (8 cyl + 4 pad boxes + 11 mesh-AABB)",
+       len(arm_geoms) == 23
+       and sum(1 for g in arm_geoms if g.get("approx") == "mesh_aabb") == 11)
+    ok("mount in the kinematics table (z1_link00 jointless child of base_link)",
+       gz["bodies"].get("z1_link00", {}).get("parent") == "base_link"
+       and gz["bodies"]["z1_link00"]["jointless"] is True)
+    # kernel constructs + resolves against a URDF-merged-style articulation (os0 folded,
+    # arm links present) — required bodies then include the jointed arm chain.
+    kz = core.A3SelfOcclusionKernel(body_geoms=gz)
+    merged = ["base_link",
+              "FL_hip", "FL_thigh", "FL_calf", "FL_foot",
+              "FR_hip", "FR_thigh", "FR_calf", "FR_foot",
+              "RL_hip", "RL_thigh", "RL_calf", "RL_foot",
+              "RR_hip", "RR_thigh", "RR_calf", "RR_foot",
+              "z1_link00", "z1_link01", "z1_link02", "z1_link03",
+              "z1_link04", "z1_link05", "z1_link06", "z1_gripperMover"]
+    kz.resolve_to(merged)
+    ok("a2z1 kernel resolves on the merged articulation (arm bodies required)",
+       {"z1_link02", "z1_gripperMover"} <= set(kz.required_bodies))
+    ok("os0 occluders re-anchored (no os0 bodies required)",
+       not any(b.startswith("os0_") for b in kz.required_bodies))
+mdp_text2 = (A2_DIR / "mdp_a3.py").read_text()
+ok("dome_ranges takes a body_geoms_json override",
+   "body_geoms_json" in mdp_text2 and "load_body_geoms" in mdp_text2)
+l1_text = (A2_DIR / "env_cfg_a2z1_l1.py").read_text()
+ok("L1 env points BOTH obs groups at the a2z1 occluders",
+   l1_text.count('dome_ranges.params = {"body_geoms_json"') == 2)
+
 print("-" * 78)
 n = sum(PASS)
 print(f"{'ALL PASS' if all(PASS) else 'FAILURES'}: {n}/{len(PASS)}")

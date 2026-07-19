@@ -27,6 +27,7 @@ from isaaclab.utils.math import quat_apply
 
 from robot_lab.tasks.a2.a3_range_core import (
     A3SelfOcclusionKernel,
+    load_body_geoms,
     load_pattern,
     sensor_frame_directions,
 )
@@ -56,11 +57,17 @@ class A3DomePatternCfg(patterns.PatternBaseCfg):
 _KERNEL_CACHE: dict[int, tuple] = {}
 
 
-def _get_kernel(env: "ManagerBasedRLEnv", asset_name: str):
-    """Build (once per env instance) the self-occlusion kernel + the body-name -> index map."""
-    key = id(env)
+def _get_kernel(env: "ManagerBasedRLEnv", asset_name: str, body_geoms_json: str | None = None):
+    """Build (once per env instance × geom set) the self-occlusion kernel + body-index map.
+
+    ``body_geoms_json`` selects the OCCLUDER set (None = the locked armless
+    a3_body_geoms_v1.json); armed tasks pass their robot-keyed variant (e.g.
+    a3_body_geoms_a2z1_v1.json — W2, 2026-07-18) so the domes see the arm.
+    """
+    key = (id(env), body_geoms_json or "")
     if key not in _KERNEL_CACHE:
-        kernel = A3SelfOcclusionKernel(device=env.device)
+        body_geoms = load_body_geoms(body_geoms_json) if body_geoms_json else None
+        kernel = A3SelfOcclusionKernel(body_geoms=body_geoms, device=env.device)
         asset = env.scene[asset_name]
         body_names = list(asset.body_names)
         # IsaacLab's URDF import MERGES fixed links (the OS0 stack folds into base_link) —
@@ -76,13 +83,15 @@ def dome_ranges(
     env: "ManagerBasedRLEnv",
     sensor_names: tuple[str, ...] = ("dome_front", "dome_rear"),
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    body_geoms_json: str | None = None,
 ) -> torch.Tensor:
     """The V5 student range block: fused min(terrain, self-body) ranges, normalized [0,1].
 
     TRUE-FIRST-HIT: the self-occlusion kernel supplies the robot-body hits the static-mesh
     RayCaster cannot see; no masking, no fill rules — the fused measurement IS the observation.
+    ``body_geoms_json``: occluder-set override for non-default bodies (armed a2z1).
     """
-    kernel, idx = _get_kernel(env, asset_cfg.name)
+    kernel, idx = _get_kernel(env, asset_cfg.name, body_geoms_json)
     # terrain ranges from the two RayCasters (miss -> inf -> normalizes to 1.0).
     # RANGE ORIGIN (R8 source-truth fix, 2026-06-12): RayCasterData.pos_w/quat_w report the
     # tracked BODY pose, NOT the sensor frame — the cfg offset is baked into the RAY SET at

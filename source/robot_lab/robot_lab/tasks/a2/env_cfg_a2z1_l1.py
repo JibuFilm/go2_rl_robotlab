@@ -15,12 +15,17 @@
 # /World/ground (the arm is structurally invisible to them); contact/reward body regexes
 # (.*_foot, .*_thigh, base_link) cannot match z1_* names (audited at URDF generation).
 #
-# ⚠ KNOWN PARITY DEBT (tracked in the W2 docs, NOT closed here): the dome_ranges
-# self-occlusion kernel reads tasks/a2/data/a3_body_geoms_v1.json — A2-only occluders.
-# Until that file is regenerated with the arm's geoms, the policy's lidar does NOT see
-# the arm that the deploy sensor will see.
+# Dome self-occlusion: this cfg points the kernel at the ARMED occluder set
+# (data/a3_body_geoms_a2z1_v1.json — parity-debt item 1 CLOSED 2026-07-18; behaviorally
+# validated: pose sweep +22 arm rays, mj_ray corroborates 7/7). Design fact from that
+# validation: the mid-roof mount sits largely in the two domes' MUTUAL BLIND WEDGE (each
+# 96° cone looks away from the roof centre), so per-pose arm visibility is ~3-7 rays —
+# physically correct for a 3-5 cm limb on a 16×16 pattern; train==deploy share the wedge
+# by construction (the pattern contract IS the deploy pattern).
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -63,6 +68,15 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
 
         # ---- the armed body ----
         self.scene.robot = A2Z1_CFG_UNITREE.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+        # ---- armed OCCLUDER set for the dome self-occlusion kernel (W2 parity-debt item 1,
+        # closed 2026-07-18): the a2z1-keyed geoms file (base 40 + all 23 Z1 collision geoms;
+        # gripper mesh hulls as AABB boxes) so the domes SEE the rear-mounted arm exactly as
+        # the deploy sensor will. Emitted by PerceptionGame a3_pattern.py --emit --fork
+        # --robot a2z1; the armless tasks keep a3_body_geoms_v1.json untouched.
+        _a2z1_geoms = str(Path(__file__).resolve().parent / "data" / "a3_body_geoms_a2z1_v1.json")
+        self.observations.policy.dome_ranges.params = {"body_geoms_json": _a2z1_geoms}
+        self.observations.single_obs.dome_ranges.params = {"body_geoms_json": _a2z1_geoms}
 
         # ---- THE one mandatory inherited-event fix (recon 2026-07-18): the base cfg's
         # reset_robot_joints passes NO asset_cfg -> IsaacLab defaults to ALL joints ->

@@ -1,0 +1,1602 @@
+{
+ "schema": "a3_body_geoms_v1",
+ "version": "a3_pattern_v1_provisional_2026-06-12",
+ "robot": "a2z1",
+ "source_mjcf": "/Users/jibujin/Developer/PerceptionGame/tools/sim/out/a2z1/a2z1.xml",
+ "size_semantics": "mujoco: sphere [r]; cylinder [r, half_height] about local z; box half-extents",
+ "bodies": {
+  "z1_link00": {
+   "parent": "base_link",
+   "pos_in_parent": [
+    -0.1,
+    0.0,
+    0.117
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": true
+  },
+  "z1_gripperMover": {
+   "parent": "z1_link06",
+   "pos_in_parent": [
+    0.1,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "base_link": {
+   "parent": "world",
+   "pos_in_parent": [
+    -1.0,
+    1.0,
+    0.6
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "z1_link02": {
+   "parent": "z1_link01",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    0.045
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "FL_calf": {
+   "parent": "FL_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "os0_sensor": {
+   "parent": "base_link",
+   "pos_in_parent": [
+    0.2143,
+    0.0,
+    0.1462
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": true
+  },
+  "RL_calf": {
+   "parent": "RL_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "z1_link06": {
+   "parent": "z1_link05",
+   "pos_in_parent": [
+    0.0492,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "FL_thigh": {
+   "parent": "FL_hip",
+   "pos_in_parent": [
+    0.0,
+    0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "os0_baseplate": {
+   "parent": "base_link",
+   "pos_in_parent": [
+    0.2143,
+    0.0,
+    0.1058
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": true
+  },
+  "z1_link03": {
+   "parent": "z1_link02",
+   "pos_in_parent": [
+    -0.35,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "FR_calf": {
+   "parent": "FR_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "FR_thigh": {
+   "parent": "FR_hip",
+   "pos_in_parent": [
+    0.0,
+    -0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "os0_roof_adapter": {
+   "parent": "base_link",
+   "pos_in_parent": [
+    0.2073,
+    0.0,
+    0.0845
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": true
+  },
+  "RL_thigh": {
+   "parent": "RL_hip",
+   "pos_in_parent": [
+    0.0,
+    0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "RR_thigh": {
+   "parent": "RR_hip",
+   "pos_in_parent": [
+    0.0,
+    -0.12779,
+    0.0
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "z1_link04": {
+   "parent": "z1_link03",
+   "pos_in_parent": [
+    0.218,
+    0.0,
+    0.057
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  },
+  "RR_calf": {
+   "parent": "RR_thigh",
+   "pos_in_parent": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_in_parent": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "jointless": false
+  }
+ },
+ "census_collision_active": {
+  "box": 35,
+  "cylinder": 13,
+  "sphere": 4,
+  "box_from_mesh_aabb": 11
+ },
+ "census_note": "brief documents 33 boxes / 6 cylinders / 4 spheres counting the OS0 visual twins (co-located duplicates of the 2 boxes + 1 cylinder); the collision-active occluder set is 31/5/4 = 40 \u2014 geometrically identical",
+ "n_geoms": 63,
+ "geoms": [
+  {
+   "name": "base1_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.12,
+    0.14,
+    0.085
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.007
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "base2_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.04,
+    0.025,
+    0.01
+   ],
+   "pos_body": [
+    0.25,
+    0.0,
+    0.119
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "base3_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.025,
+    0.015,
+    0.008
+   ],
+   "pos_body": [
+    -0.22,
+    0.0,
+    0.119
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "base4_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.03,
+    0.05,
+    0.005
+   ],
+   "pos_body": [
+    0.365,
+    0.0,
+    0.1
+   ],
+   "quat_wxyz_body": [
+    0.939372685,
+    0.0,
+    -0.342897885,
+    0.0
+   ]
+  },
+  {
+   "name": "base5_collision",
+   "body": "base_link",
+   "type": "box",
+   "size": [
+    0.0225,
+    0.05,
+    0.005
+   ],
+   "pos_body": [
+    -0.31,
+    0.0,
+    0.112
+   ],
+   "quat_wxyz_body": [
+    0.939372685,
+    0.0,
+    0.342897885,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_thigh1_collision",
+   "body": "FL_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    -0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_thigh2_collision",
+   "body": "FL_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_thigh3_collision",
+   "body": "FL_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf1_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf2_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf3_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_calf4_collision",
+   "body": "FL_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "FL_foot_collision",
+   "body": "FL_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_thigh1_collision",
+   "body": "FR_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_thigh2_collision",
+   "body": "FR_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_thigh3_collision",
+   "body": "FR_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf1_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf2_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf3_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_calf4_collision",
+   "body": "FR_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "FR_foot_collision",
+   "body": "FR_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_thigh1_collision",
+   "body": "RL_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    -0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_thigh2_collision",
+   "body": "RL_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_thigh3_collision",
+   "body": "RL_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf1_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf2_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf3_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_calf4_collision",
+   "body": "RL_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "RL_foot_collision",
+   "body": "RL_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_thigh1_collision",
+   "body": "RR_thigh",
+   "type": "cylinder",
+   "size": [
+    0.048,
+    0.06
+   ],
+   "pos_body": [
+    0.0,
+    0.04,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707034778,
+    0.707178777,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_thigh2_collision",
+   "body": "RR_thigh",
+   "type": "box",
+   "size": [
+    0.0275,
+    0.018,
+    0.085
+   ],
+   "pos_body": [
+    -0.025,
+    0.0,
+    -0.09
+   ],
+   "quat_wxyz_body": [
+    0.9999875,
+    0.0,
+    0.004999978,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_thigh3_collision",
+   "body": "RR_thigh",
+   "type": "box",
+   "size": [
+    0.0085,
+    0.025,
+    0.025
+   ],
+   "pos_body": [
+    -0.022,
+    0.0,
+    -0.27
+   ],
+   "quat_wxyz_body": [
+    0.930507512,
+    0.0,
+    -0.366272808,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf1_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.012,
+    0.015,
+    0.05
+   ],
+   "pos_body": [
+    0.018,
+    0.0,
+    -0.08
+   ],
+   "quat_wxyz_body": [
+    0.992808666,
+    0.0,
+    -0.11971196,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf2_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.011,
+    0.015,
+    0.04
+   ],
+   "pos_body": [
+    0.033,
+    0.0,
+    -0.17
+   ],
+   "quat_wxyz_body": [
+    0.999887503,
+    0.0,
+    -0.014999393,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf3_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.01,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.029,
+    0.0,
+    -0.236
+   ],
+   "quat_wxyz_body": [
+    0.995004165,
+    0.0,
+    0.099833417,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_calf4_collision",
+   "body": "RR_calf",
+   "type": "box",
+   "size": [
+    0.005,
+    0.018,
+    0.03
+   ],
+   "pos_body": [
+    0.008,
+    0.0,
+    -0.23
+   ],
+   "quat_wxyz_body": [
+    0.942754732,
+    0.0,
+    0.333486905,
+    0.0
+   ]
+  },
+  {
+   "name": "RR_foot_collision",
+   "body": "RR_calf",
+   "type": "sphere",
+   "size": [
+    0.032
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    -0.275
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "os0_roof_adapter_geom",
+   "body": "os0_roof_adapter",
+   "type": "box",
+   "size": [
+    0.075,
+    0.0625,
+    0.01
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "os0_baseplate_geom",
+   "body": "os0_baseplate",
+   "type": "box",
+   "size": [
+    0.055,
+    0.055,
+    0.01125
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "os0_sensor_geom",
+   "body": "os0_sensor",
+   "type": "cylinder",
+   "size": [
+    0.0435,
+    0.029175
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_61",
+   "body": "z1_link00",
+   "type": "cylinder",
+   "size": [
+    0.0325,
+    0.0255
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0255
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_64",
+   "body": "z1_link02",
+   "type": "cylinder",
+   "size": [
+    0.0325,
+    0.051
+   ],
+   "pos_body": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707106781,
+    0.707106781,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_65",
+   "body": "z1_link02",
+   "type": "cylinder",
+   "size": [
+    0.0225,
+    0.1175
+   ],
+   "pos_body": [
+    -0.1625,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707106781,
+    0.0,
+    0.707106781,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_66",
+   "body": "z1_link02",
+   "type": "cylinder",
+   "size": [
+    0.0325,
+    0.0255
+   ],
+   "pos_body": [
+    -0.35,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707106781,
+    0.707106781,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_68",
+   "body": "z1_link03",
+   "type": "cylinder",
+   "size": [
+    0.02,
+    0.058
+   ],
+   "pos_body": [
+    0.128,
+    0.0,
+    0.055
+   ],
+   "quat_wxyz_body": [
+    0.707106781,
+    0.0,
+    0.707106781,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_69",
+   "body": "z1_link03",
+   "type": "cylinder",
+   "size": [
+    0.0325,
+    0.0295
+   ],
+   "pos_body": [
+    0.2205,
+    0.0,
+    0.055
+   ],
+   "quat_wxyz_body": [
+    0.5,
+    -0.5,
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "name": "geom_71",
+   "body": "z1_link04",
+   "type": "cylinder",
+   "size": [
+    0.0325,
+    0.0335
+   ],
+   "pos_body": [
+    0.072,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_74",
+   "body": "z1_link06",
+   "type": "cylinder",
+   "size": [
+    0.0325,
+    0.0255
+   ],
+   "pos_body": [
+    0.0255,
+    0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707106781,
+    0.0,
+    0.707106781,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_76",
+   "body": "z1_link06",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.012129047,
+    0.017070624,
+    0.036554672
+   ],
+   "pos_body": [
+    0.184992948,
+    -0.0,
+    -0.017189509
+   ],
+   "quat_wxyz_body": [
+    0.377393547,
+    0.377393547,
+    -0.597975008,
+    0.597975008
+   ]
+  },
+  {
+   "name": "geom_77",
+   "body": "z1_link06",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.013809912,
+    0.017753486,
+    0.040893808
+   ],
+   "pos_body": [
+    0.163898495,
+    -0.0,
+    -0.024279892
+   ],
+   "quat_wxyz_body": [
+    0.285255939,
+    0.285255939,
+    -0.647015494,
+    0.647015494
+   ]
+  },
+  {
+   "name": "geom_78",
+   "body": "z1_link06",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.01138256,
+    0.011856032,
+    0.040893808
+   ],
+   "pos_body": [
+    0.141452483,
+    -0.0,
+    -0.027290556
+   ],
+   "quat_wxyz_body": [
+    0.419175435,
+    0.419175435,
+    -0.569466377,
+    0.569466377
+   ]
+  },
+  {
+   "name": "geom_79",
+   "body": "z1_link06",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.013451308,
+    0.030641273,
+    0.040893804
+   ],
+   "pos_body": [
+    0.102540747,
+    -0.0,
+    -0.023442487
+   ],
+   "quat_wxyz_body": [
+    0.529505023,
+    0.529505023,
+    -0.468641046,
+    0.468641046
+   ]
+  },
+  {
+   "name": "geom_80",
+   "body": "z1_link06",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.032703789,
+    0.032703787,
+    0.029064031
+   ],
+   "pos_body": [
+    0.099999963,
+    -0.0,
+    0.0
+   ],
+   "quat_wxyz_body": [
+    0.707106781,
+    0.707106781,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_81",
+   "body": "z1_link06",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.032780457,
+    0.032780457,
+    0.02906403
+   ],
+   "pos_body": [
+    0.073064059,
+    0.0,
+    -0.0
+   ],
+   "quat_wxyz_body": [
+    0.5,
+    0.5,
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "name": "geom_82",
+   "body": "z1_link06",
+   "type": "box",
+   "size": [
+    0.014,
+    0.015,
+    0.004
+   ],
+   "pos_body": [
+    0.186,
+    -0.015,
+    -0.0125
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_83",
+   "body": "z1_link06",
+   "type": "box",
+   "size": [
+    0.014,
+    0.015,
+    0.004
+   ],
+   "pos_body": [
+    0.186,
+    0.015,
+    -0.0125
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_85",
+   "body": "z1_gripperMover",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.01442674,
+    0.019233301,
+    0.036677573
+   ],
+   "pos_body": [
+    0.083691999,
+    0.0,
+    0.001309548
+   ],
+   "quat_wxyz_body": [
+    0.632331693,
+    0.632331693,
+    -0.316475323,
+    0.316475323
+   ]
+  },
+  {
+   "name": "geom_86",
+   "body": "z1_gripperMover",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.013010078,
+    0.019833479,
+    0.040784672
+   ],
+   "pos_body": [
+    0.063549845,
+    -0.0,
+    0.008541269
+   ],
+   "quat_wxyz_body": [
+    0.696653834,
+    0.696653834,
+    -0.121133955,
+    0.121133955
+   ]
+  },
+  {
+   "name": "geom_87",
+   "body": "z1_gripperMover",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.010260296,
+    0.013524786,
+    0.040999943
+   ],
+   "pos_body": [
+    0.042652482,
+    2e-09,
+    0.012661882
+   ],
+   "quat_wxyz_body": [
+    0.707101647,
+    0.707101647,
+    0.002694602,
+    -0.002694602
+   ]
+  },
+  {
+   "name": "geom_88",
+   "body": "z1_gripperMover",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.005999981,
+    0.021270019,
+    0.031340411
+   ],
+   "pos_body": [
+    0.00860493,
+    0.03499996,
+    0.005231442
+   ],
+   "quat_wxyz_body": [
+    0.616337449,
+    0.346595079,
+    0.346595079,
+    0.616337449
+   ]
+  },
+  {
+   "name": "geom_89",
+   "body": "z1_gripperMover",
+   "type": "box",
+   "approx": "mesh_aabb",
+   "size": [
+    0.005249977,
+    0.021270019,
+    0.031340411
+   ],
+   "pos_body": [
+    0.00860493,
+    -0.035749964,
+    0.005231442
+   ],
+   "quat_wxyz_body": [
+    0.61633745,
+    0.346595078,
+    0.346595078,
+    0.61633745
+   ]
+  },
+  {
+   "name": "geom_90",
+   "body": "z1_gripperMover",
+   "type": "box",
+   "size": [
+    0.014,
+    0.015,
+    0.004
+   ],
+   "pos_body": [
+    0.086,
+    -0.015,
+    -0.0055
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "geom_91",
+   "body": "z1_gripperMover",
+   "type": "box",
+   "size": [
+    0.014,
+    0.015,
+    0.004
+   ],
+   "pos_body": [
+    0.086,
+    0.015,
+    -0.0055
+   ],
+   "quat_wxyz_body": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  }
+ ]
+}
