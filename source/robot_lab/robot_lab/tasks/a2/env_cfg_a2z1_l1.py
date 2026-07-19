@@ -166,12 +166,25 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
                 "yaw": (-0.25, 0.25),
             },
         }
-        # (2) termination penalty: one-time −5 on death (is_terminated excludes time-outs),
-        #     scaled to the per-episode reward magnitude (~22 at maturity) — kills the
-        #     die-fast gradient early, fades to irrelevance as falls become rare.
+        # (2) termination penalty: one-time −5 on death (is_terminated excludes time-outs).
+        #     ⚠ isaaclab reward terms are dt-SCALED RATES (reward_manager.py:150:
+        #     value = func × weight × dt) — r2 shipped weight −5.0 which became −0.1/death
+        #     (Episode_Reward/termination_penalty read −0.00; the policy learned suicide:
+        #     iter-20 episodes were 325 steps at 24% falls, by iter 60 it dove to 18-step
+        #     100%-fall episodes). −250 × dt 0.02 = the intended −5.
         self.rewards.termination_penalty = RewTerm(
             func=mdp.is_terminated,
-            weight=-5.0,
+            weight=-250.0,
+        )
+        # (3) alive bonus (+0.15/step = 7.5 × dt): sized against the MEASURED early per-step
+        #     penalty floor (~−0.13/step for a flailing non-tracking policy on this recipe) so
+        #     LIVING is net-positive from step one — the armless smoke escaped the suicide
+        #     basin on tracking-reward traction alone; the armed body demonstrably cannot.
+        #     L1 PHASE-IN crutch: action-independent (no behavior distortion among survivors),
+        #     revisit/anneal at W3-L2. Corridor eval judges behavior, not reward magnitude.
+        self.rewards.alive_bonus = RewTerm(
+            func=mdp.is_alive,
+            weight=7.5,
         )
 
         # Inherited events that now ALSO cover the arm — kept deliberately (recon-audited):
