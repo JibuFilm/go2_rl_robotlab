@@ -187,6 +187,43 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
             weight=7.5,
         )
 
+        # ---- r4 COMMAND-GATE RECALIBRATION (2026-07-19, resume phase from the r3 checkpoint;
+        # full evidence in W2_A2Z1_TASK.md r4 section). r3 proved the V15 gate structurally
+        # locked for a FRESH walker: nobody ever SUSTAINED the 0.80 magnitude-weighted bar
+        # (V15 elite held 0.69-0.72 at ±1.5; V16 elite 0.75-0.77 at ±3.0) — every historical
+        # advance was a post-reset EMA transient a warm-started walker gets and a from-scratch
+        # one never does (V16 log: ±0.5→±3.0 cascades in ~130 iters after each resume). And
+        # drift = v_perp/|cmd| — the 0.15 bound was calibrated at cmd ≥ 1.0; at stage-0 norms
+        # (~0.2-0.7) the same ABSOLUTE wobble reads 2-5× larger (r3: 0.236 at ±0.5 ≈ V15's
+        # passing 0.12 at ±1.5). Recalibration, all measured-evidence-grounded:
+        #   * speed bar 0.70 per stage = at/below the armless-elite STEADY STATE (0.72-0.77),
+        #     r3's walker sits at 0.703 at ±0.5 — earnable, but each widening must still be
+        #     HELD at the new range (magnitude weighting makes the new top dominate);
+        #   * drift bar scaled so the implied ABSOLUTE lateral bound stays ~constant
+        #     (0.15 × 1.0 m/s at the V15 calibration point): ±1.0→0.30, ±1.5→0.22,
+        #     ±2.0→0.18, ±2.5+→0.15; fall bar 0.12 unchanged;
+        #   * floors compressed to consolidation SPACING (~500 iters/stage): the resume
+        #     restarts env.common_step_counter, so the inherited 4k/7k/10k... floors would
+        #     re-bind from zero and cap an 8k resume at ±1.5 regardless of competence.
+        #     Competence, not the clock, is the binding constraint — as V15 intended.
+        #   * warmup 200 (was 1000): warm-walker resume; the EMA consolidates in ~33 iters.
+        # Table ends at ±3.0 (V16-class, the no-regression bar; drive-sim --vx-max pins to
+        # the TRAINED range). Everything else — rewards, terrain, phase-in deltas — untouched.
+        cmd = self.commands.base_velocity
+        cmd.command_curriculum_warmup_iters = 200
+        cmd.command_range_curriculum = [
+            {"iter":  300, "lin_vel_x": [-1.0, 1.0], "lin_vel_y": [-0.5, 0.5], "ang_vel_yaw": [-1.25, 1.25],
+             "min_speed_ratio": 0.70, "max_drift_ratio": 0.30},
+            {"iter":  800, "lin_vel_x": [-1.5, 1.5], "lin_vel_y": [-0.6, 0.6], "ang_vel_yaw": [-1.5, 1.5],
+             "min_speed_ratio": 0.70, "max_drift_ratio": 0.22},
+            {"iter": 1300, "lin_vel_x": [-2.0, 2.0], "lin_vel_y": [-0.7, 0.7], "ang_vel_yaw": [-1.75, 1.75],
+             "min_speed_ratio": 0.70, "max_drift_ratio": 0.18},
+            {"iter": 1800, "lin_vel_x": [-2.5, 2.5], "lin_vel_y": [-0.8, 0.8], "ang_vel_yaw": [-2.0, 2.0],
+             "min_speed_ratio": 0.70, "max_drift_ratio": 0.15},
+            {"iter": 2300, "lin_vel_x": [-3.0, 3.0], "lin_vel_y": [-0.9, 0.9], "ang_vel_yaw": [-2.25, 2.25],
+             "min_speed_ratio": 0.70, "max_drift_ratio": 0.15},
+        ]
+
         # Inherited events that now ALSO cover the arm — kept deliberately (recon-audited):
         #  * randomize_actuator_gains (joint_names '.*'): ±10% arm servo-gain DR — desirable.
         #  * randomize_rigid_body_mass_others ('^(?!.*base).*'): ±10% per-link arm mass DR.
