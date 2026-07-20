@@ -224,6 +224,22 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
              "min_speed_ratio": 0.70, "max_drift_ratio": 0.15},
         ]
 
+        # ---- r5 ε-TAIL CO-TRAINING (2026-07-19, user call: "slow-and-pushing-terrain and
+        # fast-and-pushing-terrain are TWO DIFFERENT gaits — as much as it sounds like staging,
+        # it isn't"). Evidence agrees: v16full's own 19.4k-iter log ends still fighting ±2.0 at
+        # 0.79/0.80 — under a serial earned gate the fast basin is never practiced and the slow
+        # gait consolidates alone. So: 15% of command resamples draw from the FULL ±3.0 target
+        # band (per-terrain caps still bind — sprint commands land on flat-class cells, stairs
+        # stay ±1.0); tail envs are masked out of the gate EMA so the official range stays
+        # earned. Fast + slow gaits co-develop for the remaining ~5k iters. Constant fraction
+        # for r5; anneal/schedule decisions belong to W3-L2.
+        cmd.command_curriculum_explore_frac = 0.15
+        cmd.command_curriculum_explore_ranges = {
+            "lin_vel_x": [-3.0, 3.0],
+            "lin_vel_y": [-0.9, 0.9],
+            "ang_vel_yaw": [-2.25, 2.25],
+        }
+
         # Inherited events that now ALSO cover the arm — kept deliberately (recon-audited):
         #  * randomize_actuator_gains (joint_names '.*'): ±10% arm servo-gain DR — desirable.
         #  * randomize_rigid_body_mass_others ('^(?!.*base).*'): ±10% per-link arm mass DR.

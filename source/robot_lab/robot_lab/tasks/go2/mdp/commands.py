@@ -80,6 +80,27 @@ class Go2RLGymCommand(CommandTerm):
         self._curriculum_ema_samples = 0
         self._last_curriculum_hold_iter = -1
 
+        # ε-tail exploration (opt-in): per-env FULL-band ranges (terrain caps applied exactly like
+        # _update_env_command_ranges) + the tail-membership mask the gate EMA excludes.
+        self._is_explore_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.env_explore_ranges = None
+        if self.cfg.command_curriculum_explore_frac > 0.0:
+            if not self.cfg.command_curriculum_explore_ranges:
+                raise ValueError("command_curriculum_explore_frac > 0 requires command_curriculum_explore_ranges")
+            er = self.cfg.command_curriculum_explore_ranges
+            self.env_explore_ranges = {
+                k: torch.tensor(er[k], dtype=torch.float, device=self.device).repeat(self.num_envs, 1)
+                for k in ("lin_vel_x", "lin_vel_y", "ang_vel_yaw")
+            }
+            for terrain_type, tcr in self.cfg.terrain_max_command_ranges.items():
+                if terrain_type not in self.terrain_type2idx:
+                    continue
+                t_ids = (self.terrain_idxs == self.terrain_type2idx[terrain_type]).nonzero().flatten()
+                for k in ("lin_vel_x", "lin_vel_y", "ang_vel_yaw"):
+                    self.env_explore_ranges[k][t_ids, 0] = max(tcr[k][0], er[k][0])
+                    self.env_explore_ranges[k][t_ids, 1] = min(tcr[k][1], er[k][1])
+            print(f"Command explore tail ACTIVE: frac={self.cfg.command_curriculum_explore_frac} ranges={er}")
+
         self.cfg.command_range_curriculum = sorted(self.cfg.command_range_curriculum, key=lambda x: x['iter'], reverse=True)
 
     def __str__(self) -> str:
@@ -271,6 +292,26 @@ class Go2RLGymCommand(CommandTerm):
                         )
             min_prob += self.zero_command_prob
 
+        # ---- ε-tail exploration (opt-in; default OFF): a fraction of resamples draw from the FULL
+        # target band (terrain-capped) so fast-command gaits co-develop with the earned ramp — the
+        # serial gate otherwise consolidates a slow gait first, and a fast gait is a DIFFERENT
+        # contact schedule, not an extension (v16full's 19.4k-iter log ends still fighting ±2.0).
+        # Applied LAST so limit-vel/zero-command overrides can't snap tail envs back to the stage
+        # band; tail envs are masked out of the gate EMA in _update_command_curriculum_stats.
+        self._is_explore_env[env_ids] = False
+        if self.env_explore_ranges is not None:
+            tail_sel = torch.rand(len(env_ids), device=self.device) < self.cfg.command_curriculum_explore_frac
+            tail_ids = env_ids[tail_sel]
+            if len(tail_ids) > 0:
+                rnd = torch.rand(len(tail_ids), 3, device=self.device)
+                for j, key in enumerate(("lin_vel_x", "lin_vel_y", "ang_vel_yaw")):
+                    lo = self.env_explore_ranges[key][tail_ids, 0]
+                    hi = self.env_explore_ranges[key][tail_ids, 1]
+                    self.commands[tail_ids, j] = (hi - lo) * rnd[:, j] + lo
+                # keep the base sampler's small-command dead zone
+                self.commands[tail_ids, :2] *= (torch.norm(self.commands[tail_ids, :2], dim=1) > 0.2).unsqueeze(1)
+                self._is_explore_env[tail_ids] = True
+
         self.commands_xy_accumulation[env_ids] += self.commands[env_ids, :2]
 
     def _update_command(self):
@@ -285,6 +326,8 @@ class Go2RLGymCommand(CommandTerm):
         cmd_xy = self.commands[:, :2]
         cmd_norm = torch.linalg.norm(cmd_xy, dim=1)
         moving = cmd_norm > self.cfg.command_curriculum_min_cmd
+        # ε-tail envs run off-curriculum commands by design — exclude them from the earned-advancement EMA.
+        moving = moving & ~self._is_explore_env
         if moving.any():
             cmd_dir = cmd_xy / cmd_norm.clamp_min(1e-6).unsqueeze(1)
             v_xy = self.robot.data.root_lin_vel_b[:, :2]
@@ -390,6 +433,11 @@ class Go2RLGymCommand(CommandTerm):
             f"{stage.get('max_drift_ratio', self.cfg.command_curriculum_max_drift_ratio):.3f} "
             f"terrain={float(self._curriculum_ema_terrain_level):.2f}/"
             f"{stage.get('min_terrain_level', self.cfg.command_curriculum_min_terrain_level):.2f}"
+            + (
+                f" explore_n={int(self._is_explore_env.sum())}"
+                if self.env_explore_ranges is not None
+                else ""
+            )
         )
 
     def _update_env_command_ranges(self):
@@ -532,6 +580,17 @@ class Go2RLGymCommandCfg(CommandTermCfg):
     """Competence-mode speed metric: 'mean' (flat average over moving envs, the original) or 'magnitude'
     (command-magnitude-weighted, so fast commands dominate -> gates on the TOP of the range, not the easy
     low-command average that hides the high-command tail)."""
+    command_curriculum_explore_frac: float = 0.0
+    """ε-tail co-training (default 0.0 = OFF, go2/v5-v16 unchanged): fraction of command resamples drawn
+    from command_curriculum_explore_ranges (terrain-capped) instead of the current curriculum stage, so
+    gaits for the FULL target band are practiced in parallel with the earned ramp rather than after it —
+    a fast gait is a different contact schedule, not an extension of the slow one, and a serial gate
+    otherwise consolidates the slow gait alone. Tail envs are excluded from the gate EMA, so official
+    range advancement stays earned on the stage band."""
+    command_curriculum_explore_ranges: dict | None = None
+    """Full target band for the ε-tail, e.g. {'lin_vel_x': [-3.0, 3.0], 'lin_vel_y': [-0.9, 0.9],
+    'ang_vel_yaw': [-2.25, 2.25]}. Required when command_curriculum_explore_frac > 0. Per-terrain caps
+    (terrain_max_command_ranges) still bind, so tail sprints land on flat-class cells, not stairs."""
     terrain_max_command_ranges: dict[str, dict] = {
         #### go2 terrains ####
         'wave':
