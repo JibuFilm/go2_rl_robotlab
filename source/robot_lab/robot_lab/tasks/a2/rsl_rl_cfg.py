@@ -156,3 +156,8 @@ class A2Z1L1PPORunnerCfg(A2V17CleanPPORunnerCfg):
     only the experiment name forks the run dir."""
 
     experiment_name = "a2z1_l1_ppo"
+    # SIDECAR-GLOB FIX (2026-07-20): `--resume` without an explicit `--checkpoint` resolves through
+    # get_checkpoint_path, which sorts the glob and takes the LAST match — and the terrain sidecar
+    # (now also the command-range sidecar) shares the `model_*` prefix, so it picked
+    # `model_<it>_terrain.pt` and runner.load() died on the state dict. Anchor to the weights file.
+    load_checkpoint = "model_[0-9]*.pt"

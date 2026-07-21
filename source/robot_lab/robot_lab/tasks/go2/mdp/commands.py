@@ -101,7 +101,42 @@ class Go2RLGymCommand(CommandTerm):
                     self.env_explore_ranges[k][t_ids, 1] = min(tcr[k][1], er[k][1])
             print(f"Command explore tail ACTIVE: frac={self.cfg.command_curriculum_explore_frac} ranges={er}")
 
+        # r6: eligibility + tail telemetry. `_explore_eligible` marks envs whose terrain-capped
+        # explore ceiling actually EXCEEDS the current official ceiling — i.e. envs where the tail
+        # can deliver real headroom. Recomputed whenever the official range moves.
+        self._explore_eligible = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._update_explore_eligibility()
+
+        # Tail telemetry (pure logging; see _update_metrics). Registered HERE so the keys exist in
+        # ep_extras from step 0 — rsl_rl's Logger iterates the keys of the FIRST episode dict only,
+        # so a conditionally-created metric key never appears in tensorboard. Every buffer is a
+        # (num_envs,) tensor written by full BROADCAST each step: CommandManager reduces with
+        # mean(buf[env_ids]) over an arbitrary reset subset and then zeroes those rows, so only a
+        # row-uniform value survives that contract.
+        self._tel_explore_speed = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._tel_explore_drift = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._tel_explore_cmd = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._tel_headroom_speed = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._tel_headroom_n = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._tel_max_cmd_issued = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._tel_explore_n = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+
         self.cfg.command_range_curriculum = sorted(self.cfg.command_range_curriculum, key=lambda x: x['iter'], reverse=True)
+
+    def _update_explore_eligibility(self):
+        """Mark envs where the tail has genuine headroom over the official range.
+
+        r6 fix (audit 2026-07-20): the explore band is intersected with `terrain_max_command_ranges`
+        per env, and on this A2 terrain mix 60% of envs sit on ±1.5-capped stair/obstacle cells. Once
+        the official range passed ±1.5 those tail envs were drawing commands BELOW the official band
+        while still being masked out of the gate EMA — wasted budget AND a widened lateral/yaw command
+        on the hardest terrain. Only envs with real headroom are tail-eligible now.
+        """
+        if self.env_explore_ranges is None:
+            return
+        self._explore_eligible = (
+            self.env_explore_ranges["lin_vel_x"][:, 1] > self.env_command_ranges["lin_vel_x"][:, 1] + 1e-3
+        )
 
     def __str__(self) -> str:
         """Return a string representation of the command term."""
@@ -132,6 +167,18 @@ class Go2RLGymCommand(CommandTerm):
     def _update_metrics(self):
         self.max_command_x[:] = self.command_ranges["lin_vel_x"][1]
         self.metrics["max_command_x"] = self.max_command_x
+        # r6 tail telemetry — the signal the r5 run had no way to show: how well the FAST commands
+        # are actually tracked, separated from the on-band population the gate already reports.
+        # Buffers are broadcast-filled every step in _update_command_curriculum_stats (see the
+        # contract note there); publishing them here keeps the keys present from step 0.
+        if self.env_explore_ranges is not None:
+            self.metrics["explore_speed_ratio"] = self._tel_explore_speed
+            self.metrics["explore_drift_ratio"] = self._tel_explore_drift
+            self.metrics["explore_cmd_norm"] = self._tel_explore_cmd
+            self.metrics["headroom_speed_ratio"] = self._tel_headroom_speed
+            self.metrics["headroom_n"] = self._tel_headroom_n
+            self.metrics["max_cmd_x_issued"] = self._tel_max_cmd_issued
+            self.metrics["explore_n"] = self._tel_explore_n
 
     def reset(self, env_ids: Sequence[int] | None = None):
         self.time_left[env_ids] = self.cfg.resampling_time
@@ -168,6 +215,7 @@ class Go2RLGymCommand(CommandTerm):
                                            abs(self.command_ranges["lin_vel_y"][0]), abs(self.command_ranges["lin_vel_y"][1]))
                     self.cfg.command_range_curriculum.pop(i)
                     self._update_env_command_ranges()
+                    self._update_explore_eligibility()   # r6: headroom shrinks as the range opens
                     print(f"Command range updated at iter {current_iter}: {self.command_ranges}")
                     if self.cfg.command_range_curriculum_mode == "competence":
                         self._reset_command_curriculum_stats()
@@ -300,16 +348,34 @@ class Go2RLGymCommand(CommandTerm):
         # band; tail envs are masked out of the gate EMA in _update_command_curriculum_stats.
         self._is_explore_env[env_ids] = False
         if self.env_explore_ranges is not None:
-            tail_sel = torch.rand(len(env_ids), device=self.device) < self.cfg.command_curriculum_explore_frac
+            # r6: draw the tail ONLY from eligible envs (real headroom), and renormalise the
+            # fraction against the eligible population so the configured dose is delivered to the
+            # envs that can use it instead of being diluted ~10x across capped terrain.
+            elig = self._explore_eligible[env_ids]
+            elig_frac = elig.float().mean().clamp_min(1e-6)
+            eff_frac = torch.clamp(
+                torch.tensor(self.cfg.command_curriculum_explore_frac, device=self.device) / elig_frac,
+                max=1.0,
+            )
+            tail_sel = (torch.rand(len(env_ids), device=self.device) < eff_frac) & elig
             tail_ids = env_ids[tail_sel]
             if len(tail_ids) > 0:
-                rnd = torch.rand(len(tail_ids), 3, device=self.device)
-                for j, key in enumerate(("lin_vel_x", "lin_vel_y", "ang_vel_yaw")):
-                    lo = self.env_explore_ranges[key][tail_ids, 0]
-                    hi = self.env_explore_ranges[key][tail_ids, 1]
-                    self.commands[tail_ids, j] = (hi - lo) * rnd[:, j] + lo
-                # keep the base sampler's small-command dead zone
-                self.commands[tail_ids, :2] *= (torch.norm(self.commands[tail_ids, :2], dim=1) > 0.2).unsqueeze(1)
+                # FORWARD command drawn from the HEADROOM interval [official_max, capped_explore_max]
+                # with a random sign — so every tail draw is genuinely above the trained band. Drawing
+                # uniformly over the whole explore band (r5) put ~89% of tail draws back inside the
+                # official band, which is why the tail read as a no-op.
+                lo = self.env_command_ranges["lin_vel_x"][tail_ids, 1]
+                hi = self.env_explore_ranges["lin_vel_x"][tail_ids, 1]
+                mag = (hi - lo) * torch.rand(len(tail_ids), device=self.device) + lo
+                sign = torch.where(
+                    torch.rand(len(tail_ids), device=self.device) < 0.5,
+                    -torch.ones_like(mag),
+                    torch.ones_like(mag),
+                )
+                self.commands[tail_ids, 0] = mag * sign
+                # lateral/yaw stay on the OFFICIAL stage band: the tail's job is a fast gait, not a
+                # fast spin (r5 commanded ±2.25 rad/s yaw on 0.32 m stairs — a fall driver, not
+                # sprint practice). Leaving cols 1,2 untouched keeps whatever the base sampler drew.
                 self._is_explore_env[tail_ids] = True
 
         self.commands_xy_accumulation[env_ids] += self.commands[env_ids, :2]
@@ -325,9 +391,10 @@ class Go2RLGymCommand(CommandTerm):
 
         cmd_xy = self.commands[:, :2]
         cmd_norm = torch.linalg.norm(cmd_xy, dim=1)
-        moving = cmd_norm > self.cfg.command_curriculum_min_cmd
+        moving_all = cmd_norm > self.cfg.command_curriculum_min_cmd
         # ε-tail envs run off-curriculum commands by design — exclude them from the earned-advancement EMA.
-        moving = moving & ~self._is_explore_env
+        moving = moving_all & ~self._is_explore_env
+        self._update_tail_telemetry(cmd_xy, cmd_norm, moving_all)
         if moving.any():
             cmd_dir = cmd_xy / cmd_norm.clamp_min(1e-6).unsqueeze(1)
             v_xy = self.robot.data.root_lin_vel_b[:, :2]
@@ -384,6 +451,42 @@ class Go2RLGymCommand(CommandTerm):
                 (1.0 - alpha) * self._curriculum_ema_drift_ratio + alpha * drift_metric.detach()
             )
         self._curriculum_ema_samples += 1
+
+    def _update_tail_telemetry(self, cmd_xy, cmd_norm, moving_all):
+        """Fill the tail-vs-on-band telemetry buffers. PURE LOGGING — touches no reward, no obs,
+        no RNG draw, no curriculum state, so it cannot alter training dynamics.
+
+        Contract (IsaacLab CommandManager): metric buffers are (num_envs,) tensors reduced with
+        ``mean(buf[env_ids])`` over the reset subset and then zeroed in place. Only a value that is
+        UNIFORM across rows survives that faithfully, so each buffer is written by full broadcast
+        every step (same pattern as ``max_command_x``). No ``.item()``/``float()`` here — keeping the
+        path sync-free costs nothing and avoids a per-step host stall.
+        """
+        if self.env_explore_ranges is None:
+            return
+        v_xy = self.robot.data.root_lin_vel_b[:, :2]
+        cmd_dir = cmd_xy / cmd_norm.clamp_min(1e-6).unsqueeze(1)
+        v_along = torch.sum(v_xy * cmd_dir, dim=1)
+        speed_ratio = torch.clamp(v_along / cmd_norm.clamp_min(1e-6), min=0.0, max=1.0)
+        v_perp = torch.linalg.norm(v_xy - v_along.unsqueeze(1) * cmd_dir, dim=1)
+        drift_ratio = torch.clamp(v_perp / cmd_norm.clamp_min(1e-6), min=0.0, max=5.0)
+
+        tail = moving_all & self._is_explore_env
+        tw = (cmd_norm * tail.float()).sum().clamp_min(1e-6)
+        self._tel_explore_speed[:] = (speed_ratio * cmd_norm * tail.float()).sum() / tw
+        self._tel_explore_drift[:] = (drift_ratio * cmd_norm * tail.float()).sum() / tw
+        self._tel_explore_cmd[:] = (cmd_norm * tail.float()).sum() / tail.float().sum().clamp_min(1e-6)
+        self._tel_explore_n[:] = tail.float().sum()
+
+        # HEADROOM bucket: commands above the current official ceiling, wherever they came from.
+        # Anchored to the live range (not a hard-coded 2.0/2.5) so it keeps meaning "above trained
+        # band" as the ramp opens. NOTE: with terrain caps this bucket is fed by flat/mid cells only
+        # — read it as fast-gait on fast-capable terrain, never as terrain-general.
+        head = moving_all & (self.commands[:, 0].abs() > self.command_ranges["lin_vel_x"][1] + 1e-3)
+        hw = (cmd_norm * head.float()).sum().clamp_min(1e-6)
+        self._tel_headroom_speed[:] = (speed_ratio * cmd_norm * head.float()).sum() / hw
+        self._tel_headroom_n[:] = head.float().sum()
+        self._tel_max_cmd_issued[:] = self.commands[:, 0].abs().max()
 
     def _reset_command_curriculum_stats(self):
         self._curriculum_ema_speed_ratio = torch.tensor(0.0, dtype=torch.float, device=self.device)

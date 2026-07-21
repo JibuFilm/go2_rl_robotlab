@@ -224,6 +224,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             return None  # not a curriculum/generator terrain (e.g. plane) — nothing to persist
         return t
 
+    # COMMAND-RANGE PERSISTENCE (PerceptionGame fix 2026-07-20) — same class of bug as the terrain
+    # one above, found by the r6 pre-restart audit. common_step_counter IS restored on resume (see
+    # below), but the command term rebuilds `command_ranges` from cfg.ranges (±0.5) and refills
+    # `cfg.command_range_curriculum` with ALL stages on every process launch. In competence mode the
+    # iter floor is retired, so a resumed run re-earns the entire ramp from ±0.5 — measured on r5:
+    # ~400 iters per restart spent re-climbing a range the previous segment had already earned.
+    def _cmdrange_sidecar(ckpt_path):
+        return ckpt_path[:-3] + "_cmdrange.pt" if ckpt_path.endswith(".pt") else ckpt_path + ".cmdrange.pt"
+
+    def _get_cmd_term():
+        try:
+            return env.unwrapped.command_manager.get_term("base_velocity")
+        except Exception:
+            return None
+
     _orig_runner_save = runner.save
     def _save_with_terrain(path, *a, **k):
         out = _orig_runner_save(path, *a, **k)
@@ -233,6 +248,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 torch.save(t.terrain_levels.detach().cpu(), _terrain_sidecar(path))
         except Exception as _e:
             print(f"[WARN]: terrain_levels snapshot failed for '{path}': {_e!r}")
+        try:
+            c = _get_cmd_term()
+            if c is not None and getattr(c, "command_ranges", None) is not None:
+                torch.save(
+                    {"command_ranges": c.command_ranges,
+                     "remaining_stages": list(getattr(c.cfg, "command_range_curriculum", []))},
+                    _cmdrange_sidecar(path),
+                )
+        except Exception as _e:
+            print(f"[WARN]: command_ranges snapshot failed for '{path}': {_e!r}")
         return out
     runner.save = _save_with_terrain
 
@@ -284,6 +309,30 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                     print(f"[INFO]: no terrain_levels sidecar at {_tl_path} — terrain curriculum starts fresh")
             except Exception as _e:
                 print(f"[WARN]: could not restore terrain_levels for '{resume_path}': {_e!r} — terrain resets")
+
+            # restore the EARNED command range + remaining stage list (see the save hook above), so a
+            # resumed segment continues from the range it earned instead of re-climbing from ±0.5.
+            try:
+                _c = _get_cmd_term()
+                _cr_path = _cmdrange_sidecar(resume_path)
+                if _c is not None and os.path.exists(_cr_path):
+                    _cr = torch.load(_cr_path, map_location="cpu", weights_only=False)
+                    _c.command_ranges = _cr["command_ranges"]
+                    _c.cfg.command_range_curriculum = _cr["remaining_stages"]
+                    _c.max_lin_vel = max(
+                        abs(_c.command_ranges["lin_vel_x"][0]), abs(_c.command_ranges["lin_vel_x"][1]),
+                        abs(_c.command_ranges["lin_vel_y"][0]), abs(_c.command_ranges["lin_vel_y"][1]),
+                    )
+                    _c._update_env_command_ranges()
+                    if hasattr(_c, "_update_explore_eligibility"):
+                        _c._update_explore_eligibility()
+                    print(f"[INFO]: resume command continuity — restored range "
+                          f"{_c.command_ranges['lin_vel_x']} with {len(_c.cfg.command_range_curriculum)} "
+                          f"stage(s) remaining from {_cr_path}")
+                else:
+                    print(f"[INFO]: no command-range sidecar at {_cr_path} — command curriculum starts fresh")
+            except Exception as _e:
+                print(f"[WARN]: could not restore command_ranges for '{resume_path}': {_e!r} — range resets")
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)

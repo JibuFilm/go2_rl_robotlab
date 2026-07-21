@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -233,12 +234,79 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
         # stay ±1.0); tail envs are masked out of the gate EMA so the official range stays
         # earned. Fast + slow gaits co-develop for the remaining ~5k iters. Constant fraction
         # for r5; anneal/schedule decisions belong to W3-L2.
+        # r6 CORRECTION (audit 2026-07-20, 5-lens + adversarial verify): the r5 form of this was
+        # ~1.4% effective dose, not 15%, and self-cancelling. Three verified defects, all fixed:
+        #   (a) the band is intersected with terrain_max_command_ranges, and 60% of envs sit on
+        #       ±1.5-capped stair/obstacle cells — BELOW the official ±2.0 by mid-run. Those tail
+        #       envs drew SLOWER commands than on-band envs while still being masked out of the gate
+        #       EMA (wasted budget), and had their yaw widened to ±2.25 rad/s on 0.32 m stairs (a
+        #       fall driver). FIX: `_explore_eligible` — tail only on envs with real headroom; the
+        #       fraction is renormalised against the eligible population. Tail yaw/lateral now stay
+        #       on the official band (the tail's job is a fast gait, not a fast spin).
+        #   (b) drawing uniformly over the whole band put ~89% of tail draws back INSIDE the official
+        #       band. FIX: draw the forward command from the HEADROOM interval only.
+        #   (c) the band equalled the final curriculum stage (±3.0), so tail reach decayed to exactly
+        #       zero at the target it exists to teach. FIX: band ±4.0, above the ±3.0 target (flat
+        #       terrain caps at ±5.0, so this is reachable; mid-class still clips at ±2.5).
         cmd.command_curriculum_explore_frac = 0.15
         cmd.command_curriculum_explore_ranges = {
-            "lin_vel_x": [-3.0, 3.0],
-            "lin_vel_y": [-0.9, 0.9],
-            "ang_vel_yaw": [-2.25, 2.25],
+            "lin_vel_x": [-4.0, 4.0],
+            "lin_vel_y": [-0.7, 0.7],
+            "ang_vel_yaw": [-1.75, 1.75],
         }
+
+        # ---- r6 REWARD STACK: make the fast gait actually REWARDED (audit findings, all verified
+        # against the live numbers). These are stacked deliberately in one run per the standing
+        # "stack fixes, don't sequence them" rule — attribution is confounded by construction and
+        # that trade is accepted; the telemetry below is what reads the outcome.
+        #
+        # (1) THE DEAD FLAT GRADIENT. `MAX_SIGMA_BY_NAME['flat'] = 0.25` equals default_sigma
+        #     (std 0.5² = 0.25), so dynamic-σ never widens with |cmd| on flat — the ONLY terrain
+        #     where the tail issues fast commands. At a ~1.5 m/s error the exp kernel's gradient is
+        #     ~1100× weaker than at small error, i.e. the primary tracker teaches the tail nothing.
+        #     The dial is linear in v_along and clamped to [−backtrack_cap, |cmd|] (it cannot drive
+        #     overspeed past the command), so it is the one term with live gradient out there. V14
+        #     sized it 0.1 "so it never competes with the tracker for gait shape" — under ε-tail
+        #     co-training that sizing is backwards. Restore the V8 magnitude.
+        self.rewards.track_lin_vel_dial.weight = 0.30
+        # (2) THE CADENCE TAX. feet_air_time = (last_air_time − threshold) × first_contact, with NO
+        #     non-negative clamp, so at threshold 0.57 s it is negative for every real trot and its
+        #     magnitude scales with STRIKE RATE — a standing tax on going fast (~−0.0047/step at
+        #     3 m/s vs ~−0.00125 at 1 m/s; the delta is ~50% of the entire tracking gain available
+        #     from tracking a 3.0 command well). The threshold shipped at env_cfg_v7.py:105-108 with
+        #     its own "refine to ~0.85× the MEASURED median" note, never actioned. 0.25 s is a
+        #     defensible trot-swing floor for a 0.55 m leg — ESTIMATE, not a measurement; re-derive
+        #     from a play run at L2. (rewards.py is shared byte-for-byte with go2 — do NOT clamp it
+        #     there; this is a per-task threshold change only.)
+        self.rewards.feet_air_time.params["threshold"] = 0.25
+        # (3) ALIVE-BONUS ANNEAL. At 7.5 (+0.15/step) it supplies ~83% of the positive reward — 14×
+        #     the primary tracker — and it is NOT action-independent (is_alive is entirely a function
+        #     of the survival policy). It multiplies the effective cost of death ~3.5×, cutting the
+        #     break-even added-fall-probability for a faster gait from ~11.6% to ~3.2%: a direct tax
+        #     on exactly the risk-taking the tail exists to provoke. Do NOT step it down (a −184/
+        #     episode jump would wreck the critic on resume) — anneal with the repo's own mechanism.
+        #     NOTE: gradual_reward_weight_modification reads `common_step_counter // 24`, which
+        #     train.py RESTORES on resume, so these iters are absolute run-iterations, not offsets.
+        self.curriculum.alive_bonus_anneal = CurrTerm(
+            func=mdp.gradual_reward_weight_modification,
+            params={
+                "term_name": "alive_bonus",
+                "initial_weight": 7.5,
+                "final_weight": 0.75,
+                "start_it": 12500,
+                "end_it": 16000,
+            },
+        )
+        # (4) UNOBSERVABLE ARM-CONTACT PENALTY. Nothing determining this term appears in either obs
+        #     group (both are name-pinned to the 12 leg joints), so the critic cannot predict it and
+        #     it lands in the advantage as noise ~2× the tracking signal. Scope it to the distal
+        #     links that can actually strike the ground (dropping the mount-side links that
+        #     geometrically overlap the trunk and produce the ~20%-of-steps background) and cut the
+        #     weight. Falls already terminate via bad_orientation, so this was never load-bearing.
+        self.rewards.arm_undesired_contacts.params["sensor_cfg"] = SceneEntityCfg(
+            "contact_forces", body_names="z1_link0[2-6]|z1_gripper.*"
+        )
+        self.rewards.arm_undesired_contacts.weight = -0.25
 
         # Inherited events that now ALSO cover the arm — kept deliberately (recon-audited):
         #  * randomize_actuator_gains (joint_names '.*'): ±10% arm servo-gain DR — desirable.
