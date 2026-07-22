@@ -269,6 +269,27 @@ class A2Z1L1EnvCfg(A2V16EnvCfg):
         #     sized it 0.1 "so it never competes with the tracker for gait shape" — under ε-tail
         #     co-training that sizing is backwards. Restore the V8 magnitude.
         self.rewards.track_lin_vel_dial.weight = 0.30
+        # (1b) r7 ADDENDUM — FIX THE DEAD FLAT GRADIENT AT ITS SOURCE (2026-07-21, measured).
+        #     The r6 dial bump treated the SYMPTOM; the per-terrain eval of model_14600 exposed the
+        #     cause. Measured achieved speed at commanded 3.0 m/s:
+        #         slope_up 2.87 (0.96) | slope_down 2.80 | wave 2.78 | rough_slope 2.76
+        #         FLAT 2.59 (0.86, 9% falls — 5th fastest, 2nd worst falls)
+        #     Flat is the EASIEST surface yet trails every slope. Mechanism: sigma_max['flat']
+        #     == default_sigma, so σ is pinned at 0.25 for every command magnitude — while flat's
+        #     terrain cap (±5.0) lets the ε-tail issue commands to 4.0. Achieved ~2.6 ⇒ error ~1.4
+        #     ⇒ exp(−1.4²/0.25) ≈ 4e-4: the hardest flat commands sit in the kernel's dead zone and
+        #     produce ~no gradient. Slopes escape this ONLY because their ±2.5 cap keeps commands
+        #     inside the achievable range — and they then GENERALISE UP to 2.87 at cmd 3.0 despite
+        #     never training above 2.5. So flat is not harder; its training signal is broken.
+        #     Fix: give flat a real σ ceiling so tolerance widens with |cmd|. 0.75 = the obstacles
+        #     entry (table pattern: harder regime → more tolerance; flat-at-speed is that regime).
+        #     ⚠ This CANNOT hurt slow tracking: σ interpolates v_min 0.5 → v_max 5.0, so at low
+        #     commands σ stays 0.25 exactly as before — which matters because the same eval measured
+        #     a LOW-speed weakness (ratio 0.42 at cmd 0.5) that must not be made worse.
+        #     CONSCIOUS SKIP: slope_up/slope_down/rough_slope are also σ-inert, but their ±2.5 cap
+        #     means commands never leave the achievable range (measured 0.96–1.00 ratio) — no dead
+        #     zone to fix. Left alone deliberately.
+        self.rewards.track_lin_vel_xy_exp.params["max_sigma_overrides"] = {"flat": 0.75}
         # (2) THE CADENCE TAX. feet_air_time = (last_air_time − threshold) × first_contact, with NO
         #     non-negative clamp, so at threshold 0.57 s it is negative for every real trot and its
         #     magnitude scales with STRIKE RATE — a standing tax on going fast (~−0.0047/step at

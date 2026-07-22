@@ -931,7 +931,7 @@ def feet_regulation_goal_relaxed(
 # ---------------------------------------------------------------------------
 import os  # noqa: E402
 
-from .dynamic_sigma_core import cols_to_max_sigma, dynamic_sigma  # noqa: E402
+from .dynamic_sigma_core import MAX_SIGMA_BY_NAME, cols_to_max_sigma, dynamic_sigma  # noqa: E402
 
 
 def _terrain_command_cap_per_env(
@@ -968,22 +968,34 @@ def _dynamic_sigma_per_env(
     command_name: str | None = None,
     axis_key: str | None = None,
     terrain_cap_aware: bool = False,
+    max_sigma_overrides: dict[str, float] | None = None,
 ) -> torch.Tensor:
     """Per-env sigma from terrain type + level. Falls back to the default sigma when terrain
     curriculum state is absent (reference behavior when curriculum is off,
-    legged_robot.py:1291-1292)."""
+    legged_robot.py:1291-1292).
+
+    ``max_sigma_overrides`` (default None = MAX_SIGMA_BY_NAME verbatim, so go2/v5-v16 stay
+    byte-identical) replaces per-terrain sigma_max entries. Needed because a terrain whose
+    sigma_max EQUALS default_sigma has no dynamic sigma at all: the tolerance never widens with
+    |cmd|, so commands well above what the robot achieves land in the exp kernel's dead zone and
+    yield ~no gradient. Measured on A2Z1-L1 flat — see that cfg."""
     terrain = getattr(env.scene, "terrain", None)
     levels = getattr(terrain, "terrain_levels", None) if terrain is not None else None
     types = getattr(terrain, "terrain_types", None) if terrain is not None else None
     if levels is None or types is None:
         return torch.full_like(cmd_abs, default_sigma)
-    per_col = getattr(env, "_dyn_sigma_per_col", None)
+    # cache per override-set: an overridden table must not reuse the stock table's cached tensor
+    cache_key = "_dyn_sigma_per_col"
+    if max_sigma_overrides:
+        cache_key += "_" + "_".join(f"{k}{v}" for k, v in sorted(max_sigma_overrides.items()))
+    per_col = getattr(env, cache_key, None)
     if per_col is None:
         gen = terrain.cfg.terrain_generator
         names = list(gen.sub_terrains.keys())
         props = [gen.sub_terrains[n].proportion for n in names]
-        per_col = cols_to_max_sigma(names, props, gen.num_cols).to(cmd_abs.device)
-        env._dyn_sigma_per_col = per_col
+        table = MAX_SIGMA_BY_NAME if not max_sigma_overrides else {**MAX_SIGMA_BY_NAME, **max_sigma_overrides}
+        per_col = cols_to_max_sigma(names, props, gen.num_cols, table).to(cmd_abs.device)
+        setattr(env, cache_key, per_col)
     effective_v_max = v_max
     if terrain_cap_aware and command_name is not None and axis_key is not None:
         cap = _terrain_command_cap_per_env(env, command_name, axis_key, v_max)
@@ -1020,6 +1032,7 @@ def track_lin_vel_xy_exp_dynamic_sigma(
     v_min: float = 0.5,
     v_max: float = 1.5,
     terrain_cap_aware: bool = False,
+    max_sigma_overrides: dict[str, float] | None = None,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Linear-velocity tracking with per-axis dynamic sigma (legged_robot.py:1310-1322):
@@ -1030,11 +1043,13 @@ def track_lin_vel_xy_exp_dynamic_sigma(
     default_sigma = std**2
     sigma_x = _dynamic_sigma_per_env(
         env, torch.abs(cmd[:, 0]), default_sigma, v_min, v_max,
-        command_name=command_name, axis_key="lin_vel_x", terrain_cap_aware=terrain_cap_aware
+        command_name=command_name, axis_key="lin_vel_x", terrain_cap_aware=terrain_cap_aware,
+        max_sigma_overrides=max_sigma_overrides,
     )
     sigma_y = _dynamic_sigma_per_env(
         env, torch.abs(cmd[:, 1]), default_sigma, v_min, v_max,
-        command_name=command_name, axis_key="lin_vel_y", terrain_cap_aware=terrain_cap_aware
+        command_name=command_name, axis_key="lin_vel_y", terrain_cap_aware=terrain_cap_aware,
+        max_sigma_overrides=max_sigma_overrides,
     )
     err_sq = torch.square(cmd[:, :2] - asset.data.root_lin_vel_b[:, :2])
     return torch.exp(-(err_sq[:, 0] / sigma_x + err_sq[:, 1] / sigma_y))
